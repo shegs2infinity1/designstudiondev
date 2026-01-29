@@ -36,7 +36,7 @@ import com.ibm.msg.client.wmq.common.CommonConstants;
 /**
  * Adapter manager for Bloomberg FT flow. Handles FILE and WMQ transport concerns including message
  * consumption, caching, acknowledgment, and failure persistence.
- * 
+
  * IMPORTANT: This adapter uses browse-then-selective-consume pattern via CbnTfBrowsing
  * to only process messages containing FUNDS_MOVEMENT, leaving other module messages 
  * (FX, PD, PR, SC) on the queue for their respective batch jobs.

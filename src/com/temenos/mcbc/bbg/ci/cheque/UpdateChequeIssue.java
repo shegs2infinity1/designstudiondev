@@ -35,6 +35,8 @@ public class UpdateChequeIssue extends RecordLifecycle {
             String[] alldets = paydet.split("-");
 
             String chqueid = alldets[1];
+            
+            System.out.println("Cheque ID is ------------------------------------------------------------------"+chqueid);
 
             // Fetch Cheque Issue Record
             ChequeIssueRecord chequerec;
@@ -47,11 +49,11 @@ public class UpdateChequeIssue extends RecordLifecycle {
             // Create TransactionData
             TransactionData txndata = new TransactionData();
             txndata.setCompanyId("CI2250001");
-            txndata.setSourceId("POST.PROV");
+            txndata.setSourceId("CHQ.CHARGE");
             txndata.setTransactionId(chqueid);
             txndata.setNumberOfAuthoriser("0");
             txndata.setFunction("INPUTT");
-            txndata.setVersionId("CHEQUE.ISSUE,UPD");
+            txndata.setVersionId("CHEQUE.ISSUE,UPD.STATUS.BBG.CI");
 
             // Update cheque record status
 

@@ -27,6 +27,8 @@ import com.temenos.t24.api.records.aaprddescharge.AaPrdDesChargeRecord;
 import com.temenos.t24.api.records.aaprddescharge.CalcTierTypeClass;
 import com.temenos.t24.api.records.aaproductcatalog.AaProductCatalogRecord;
 import com.temenos.t24.api.records.account.AccountRecord;
+import com.temenos.t24.api.records.account.FromDateClass;
+import com.temenos.t24.api.records.ebcontractbalances.EbContractBalancesRecord;
 import com.temenos.t24.api.records.limit.LimitRecord;
 import com.temenos.t24.api.records.limit.TimeCodeClass;
 import com.temenos.t24.api.records.stmtentry.StmtEntryRecord;
@@ -38,6 +40,7 @@ import com.temenos.t24.api.tables.ebcommonparambbgsn.EbCommonParamBbgSnRecord;
 import com.temenos.t24.api.tables.ebcommonparambbgsn.ParamNameClass;
 import com.temenos.t24.api.tables.ebcommovdtxn.EbCommOvdTxnRecord;
 import com.temenos.t24.api.tables.ebcommovdtxn.EbCommOvdTxnTable;
+import com.temenos.t24.api.complex.ac.accountapi.*;
 
 /**
  * TODO: Document me!
@@ -64,53 +67,23 @@ public class CsdUpdateDepassmentChg extends Calculation {
             AaArrangementActivityRecord arrangementActivityRecord, ArrangementContext arrangementContext,
             AaArrangementRecord arrangementRecord, TStructure productPropertyRecord,
             AaProductCatalogRecord productRecord, TStructure record, AaArrangementActivityRecord masterActivityRecord) {
-        // TODO Auto-generated method stub
-
-        System.out.println("arrangementId = "+arrangementId);
-        System.out.println("arrangementCcy = "+arrangementCcy);
-        System.out.println("adjustEffectiveDate = "+adjustEffectiveDate);
-        System.out.println("adjustChargeProperty = "+adjustChargeProperty);
-        System.out.println("chargeType = "+chargeType);
-        System.out.println("chargePropertyRecord = "+chargePropertyRecord);
-        System.out.println("adjustBaseAmount = "+adjustBaseAmount);
-        System.out.println("adjustPeriodStartDate = "+adjustPeriodStartDate);
-        System.out.println("adjustPeriodEndDate = "+adjustPeriodEndDate);
-        System.out.println("sourceActivity = "+sourceActivity);
-        System.out.println("chargeAmount = "+chargeAmount);
-        System.out.println("activityId = "+activityId);
-        System.out.println("adjustChargeAmount = "+adjustChargeAmount);       
-        System.out.println("newChargeAmount = "+newChargeAmount);
-        System.out.println("adjustReason = "+adjustReason);
-        System.out.println("accountDetailRecord = "+accountDetailRecord);
-        System.out.println("arrangementActivityRecord = "+arrangementActivityRecord);
-        System.out.println("arrangementContext = "+arrangementContext);        
-        System.out.println("arrangementRecord = "+arrangementRecord);
-        System.out.println("productPropertyRecord = "+productPropertyRecord);
-        System.out.println("productPropertyRecord = "+productPropertyRecord);
-        System.out.println("productPropertyRecord = "+productPropertyRecord);
-        System.out.println("record = "+record);
-        System.out.println("masterActivityRecord = "+masterActivityRecord);
 
         String AccNo = null;String ChgProp = null;String Categ = null;String ChRate = "";Double NewChgAmt = 0.0;
         AccountRecord AccRec = new AccountRecord();String LimitId = "";String ChType = "";Double AmtLcy = 0.0;
         StmtEntryRecord StmtEntRec = new StmtEntryRecord();String ArrStDate = "";
         TransactionRecord TxnRec = new TransactionRecord(); Double NewChgAmtComDepass = 0.0;
         EbCommonParamBbgSnRecord ComParRec = new EbCommonParamBbgSnRecord();
-        String TodayDate = getTodayDate();
+        String TodayDate = getTodayDate(); 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 
 
-        Account Ac = new Account(this);LimitRecord LiRec = new LimitRecord();
+        Account Ac = new Account(this);
+//        LimitRecord LiRec = new LimitRecord();
         try{     
             AccNo = arrangementRecord.getLinkedAppl(0).getLinkedApplId().getValue().toString();
             ArrStDate  = arrangementRecord.getStartDate().getValue().toString();
             AccRec = new AccountRecord(getDataAccessObject().getRecord("ACCOUNT",AccNo));
             Categ = AccRec.getCategory().getValue().toString();
-            try{
-                LimitId =  AccRec.getLimitKey().getValue().toString();
-                LiRec= new LimitRecord(getDataAccessObject().getRecord("LIMIT",LimitId));
-                System.out.println("LimitId = "+LimitId);
-            }catch (Exception  e) {}
             System.out.println("Account No = "+AccNo);
             System.out.println("Categ = "+Categ);
 
@@ -175,16 +148,52 @@ public class CsdUpdateDepassmentChg extends Calculation {
         }catch (Exception  e) {}
         
         // GET THE AMTLCY- END
-        Double WorkBalance = 0.0;
-        Double limAmt = 0.0;
+        Double OnlineClearedBal = 0.0;
+//        Double limAmt = 0.0;
+        Double totLockedAmt = 0.0;
+        Double effectiveBalanace = 0.0;
+        Double workingbal = 0.0;
+        Double netbal = 0.0;
+        Double davbal = 0.0;
 
         try{
+            Ac.setAccountId(AccNo);
+            System.out.println("Available balance is "+ effectiveBalanace);
+            
+            OnlineClearedBal = Double.parseDouble(AccRec.getOnlineClearedBal().getValue().toString());
+            System.out.println("Online Cleared Balance "+ OnlineClearedBal);
+            workingbal = Double.parseDouble(AccRec.getWorkingBalance().toString());
+            System.out.println("Working Balance "+ workingbal);
+            netbal = OnlineClearedBal - workingbal;
+            System.out.println("Net Balance "+ netbal);
+            TNumber avbal = Ac.getAvailableBalance().getAmount().getValue();
+            davbal = Double.parseDouble(avbal.toString());
+            System.out.println("Available Balance "+ davbal);
+            Double finbal = davbal + netbal;
+            String formattedValue = String.format("%.2f", finbal);
+            effectiveBalanace = finbal;
+//            OnlineClearedBal = OnlineClearedBal + Math.abs(AmtLcy);
 
-            WorkBalance = Double.parseDouble(AccRec.getWorkingBalance().getValue().toString());
-            WorkBalance = WorkBalance + Math.abs(AmtLcy);
-            System.out.println("WorkBalance = "+WorkBalance );
-            limAmt = Double.parseDouble(LiRec.getMaximumTotal().getValue().toString());
-            System.out.println("Limit Amount = "+ limAmt);
+            List<FromDateClass> lockedList = AccRec.getFromDate();
+
+            if (lockedList != null && !lockedList.isEmpty()) { 
+                for (FromDateClass lockedDate : lockedList) { 
+                    try {
+                        String amountStr = lockedDate.getLockedAmount().toString().trim();
+                        if (!amountStr.isEmpty()) {
+                            double lockedAmt = Double.parseDouble(amountStr);
+                            totLockedAmt += lockedAmt;
+                        }
+                    } catch (NumberFormatException | NullPointerException e) {
+                        System.out.println("Could not parse Locked Amount for one record: " + e.getMessage());
+                    }
+                }
+            }
+            System.out.println("Final Total Locked Amount is " + totLockedAmt);
+            System.out.println("Effective Balance = "+effectiveBalanace );
+            System.out.println("Formated Effective Balance = "+formattedValue );
+//            limAmt = Double.parseDouble(LiRec.getMaximumTotal().getValue().toString());
+//            System.out.println("Limit Amount = "+ limAmt);
         }catch (Exception  e) {System.out.println("fetching working balance exception");}
 
         //START INITIALIZE VARIABLES
@@ -192,7 +201,6 @@ public class CsdUpdateDepassmentChg extends Calculation {
         Double TotTxnAmt = 0.0;List<CalcTierTypeClass> CalcTierType =null;
         Double TotCrAmt = 0.0;String CommMouve = null;Double TotTxnCrAmt = 0.0;Double TotTxnDrAmt = 0.0;
         Double TotDrAmt = 0.0;Double TotChgTxnAmt = 0.0;String SetId = ""; Boolean CollectChg = false;
-        Double SOnlineAmt = 0.0;
 
         //END INITIALIZE VARIABLES
         switch (ChgProp)
@@ -216,7 +224,7 @@ public class CsdUpdateDepassmentChg extends Calculation {
             EbCommOvdTxnTable ComOvdTab = new EbCommOvdTxnTable(this);
             String SetIdPass = "";
             System.out.println("Collect charges for BBCICOMDEPASS ");
-            String FixedChAmt = "";String MinCharge = "";String MinChargeAmt = "";Double MinChgAmt = 0.0;
+            String FixedChAmt = "";String MinCharge = "";String MinChargeAmt = "";double MinChgAmt = 0.0;
             
             try
             {                
@@ -274,25 +282,36 @@ public class CsdUpdateDepassmentChg extends Calculation {
 
             //END...GETTING THE RECORD
 
-            
-            Double CurrBal = WorkBalance;
-            
+            double CurrBal = effectiveBalanace;            
+            // Calculate unauth transactions via ECB
+
+            EbContractBalancesRecord ecb = new EbContractBalancesRecord(getDataAccessObject().getRecord("EB.CONTRACT.BALANCES",AccNo));
+            double unauthTxn = 0.0;
+            String unauthDr = ecb.getTotUnauthDb().toString(); // to get unauthorized debits
+            unauthTxn = Double.parseDouble(unauthDr);
+            System.out.println("Total Locked Amount = "+totLockedAmt);
+            System.out.println("Total Unauth Amount = "+unauthTxn);
             
             if (CollectChg)
             {
-                CurrBal = CurrBal-Math.abs(AmtLcy);
-                if (CurrBal <0)
+                double NewCurrBal = davbal + Math.abs(unauthTxn) + totLockedAmt; // this is to get the new balance after removing the effect of unauth txn and also the efect of locked amount 
+                System.out.println("New Current Balance = "+NewCurrBal);
+                if (NewCurrBal < 0 )
                 {
-                    Double CurrBalLim = CurrBal + SOnlineAmt + limAmt;
+                    double CurrBalLim = NewCurrBal;
                     System.out.println("CurrBalLim = "+CurrBalLim);
-                    if (CurrBalLim < 0)
+                    if (NewCurrBal < 0)
                     {
                         if (ChType.equalsIgnoreCase("calculated"))
                         {
                             System.out.println("ChType is calulated ");
                             ChRate = CalcTierType.get(0).getChargeRate().getValue().toString();
                             System.out.println("ChRate before calculating charge amount = "+ChRate);
-                            NewChgAmt = (double) Math.round(Math.abs((AmtLcy) * ((Double.parseDouble(ChRate))/100)));
+//                            NewChgAmt = (double) Math.round(Math.abs((AmtLcy) * ((Double.parseDouble(ChRate))/100)));
+//                          2025-09-09 This change is to calculate the commission based on the new available balance and not the Transaction Amount.  
+//                            NewChgAmt = (double) Math.round(Math.abs((CurrBal) * ((Double.parseDouble(ChRate))/100)));
+//                            2025-09-18 This change is to calculate based on the new balance after the present transaction
+                            NewChgAmt = (double) Math.round(Math.abs((NewCurrBal) * ((Double.parseDouble(ChRate))/100)));
                             System.out.println("NewChgAmt = "+NewChgAmt);
                             try{
                                 MinChargeAmt = (CalcTierType.get(0).getTierMinCharge().getValue().toString());

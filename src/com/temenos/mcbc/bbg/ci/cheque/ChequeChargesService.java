@@ -51,13 +51,24 @@ public class ChequeChargesService extends ServiceLifecycle {
             TransactionControl transactionControl, List<SynchronousTransactionData> transactionData,
             List<TStructure> records) {
         
+        String changeDate = getTodayDate();
+        
+        System.out.println("Default Change Date is" + changeDate);
+        
         System.out.println("Processing Cheque Issue Record: " + id);
 
         try {
             ChequeIssueRecord chequeRec = new ChequeIssueRecord(da.getRecord("", "CHEQUE.ISSUE", "", id));
 
             String chequeAcct = chequeRec.getLocalRefField("L.ACCOUNT.NO").toString();
-            String changeDate = chequeRec.getLocalRefField("L.CHANGE.DATE").toString();
+            changeDate = chequeRec.getLocalRefField("L.CHANGE.DATE").toString();
+            System.out.println("Change Date is " + changeDate);
+            
+//            long dateDiff = 0;
+            if (changeDate.isEmpty()){
+            
+                return;
+            }
             
             long dateDiff = DateDifferenceCalculator(changeDate);
 
@@ -68,14 +79,14 @@ public class ChequeChargesService extends ServiceLifecycle {
                 FundsTransferRecord FTRecord = new FundsTransferRecord(this);
                 SynchronousTransactionData syntxn = new SynchronousTransactionData();
 
-                syntxn.setSourceId("POST.PROV");
+                syntxn.setSourceId("CHQ.CHARGE");
                 syntxn.setCompanyId("CI2250001");
                 syntxn.setVersionId("FUNDS.TRANSFER,FRAIS.DE.GARDE.BBG.CI");
                 syntxn.setFunction("INPUT");
                 syntxn.setNumberOfAuthoriser("0");
 
                 FTRecord.setDebitAcctNo(chequeAcct);
-                FTRecord.setPaymentDetails("Frais de Garde-" + id, 1);
+                FTRecord.setPaymentDetails("Frais-" + id, 0);
 
                 transactionData.add(syntxn);
                 records.add(FTRecord.toStructure());

@@ -1,4 +1,4 @@
-package com.mcbc.bbg.sn.cheque;
+package com.temenos.mcbc.bbg.ci.cheque;
 
 import com.temenos.api.TStructure;
 import com.temenos.t24.api.complex.eb.enquiryhook.EnquiryContext;
@@ -12,7 +12,7 @@ import com.temenos.t24.api.system.DataAccess;
 import com.temenos.tafj.api.client.impl.T24Context;
 import java.util.List;
 
-public class ChequeIssueProducts extends Enquiry {
+public class ChequeIssueProductsCi extends Enquiry {
   public List<FilterCriteria> setFilterCriteria(List<FilterCriteria> filterCriteria, EnquiryContext enquiryContext) {
     FilterCriteria newFilterCriteria = new FilterCriteria();
     FilterCriteria cusFilterCriteria = new FilterCriteria();
@@ -85,6 +85,27 @@ public class ChequeIssueProducts extends Enquiry {
   
   public String setValue(String value, String currentId, TStructure currentRecord, List<FilterCriteria> filterCriteria, EnquiryContext enquiryContext) {
     String accountParamValue = ((FilterCriteria)filterCriteria.get(0)).getValue();
+   DataAccess da = new DataAccess((T24Context)this); 
+//    AccountRecord accountRec = new AccountRecord();
+    AlternateAccountRecord altRec = new AlternateAccountRecord();
+    try {
+        System.out.println("Account Number Check" + accountParamValue.length());
+        if (accountParamValue.length() == 12){
+//            accountRec = new AccountRecord(da.getRecord("ACCOUNT", accountParamValue));
+        } else if (accountParamValue.length() == 11) {
+            System.out.println("Alter Account Number Check "+ accountParamValue.length());
+            altRec = new AlternateAccountRecord(da.getRecord("ALTERNATE.ACCOUNT", accountParamValue));
+            System.out.println("Alter Account Number "+ altRec);
+            String acctnum = altRec.getGlobusAcctNumber().getValue();
+            accountParamValue = acctnum ;
+//            accountRec = new AccountRecord(da.getRecord("ACCOUNT", accountParamValue));
+        } else {
+            System.out.println("Invalid Account Number");
+        }
+    } catch (Exception e) {
+        System.out.println(e);
+    }
+    
     return accountParamValue;
   }
 }

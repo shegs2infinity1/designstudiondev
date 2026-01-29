@@ -20,7 +20,7 @@ import com.ibm.mq.jms.MQConnectionFactory;
 import com.ibm.msg.client.wmq.WMQConstants;
 
 /**
- * Test utility to push JSON files from OUTWARD directory to IBM MQ queue.
+ * Test utility to push JSON files from OUTWARD directory to IBM MQ queues.
  * 
  * Configuration is loaded from bloomberg.properties in the resources directory.
  */

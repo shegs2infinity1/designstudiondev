@@ -16,7 +16,7 @@ import com.temenos.t24.api.system.Session;
 
 /**
  * TODO: Get the Funds Transfer details from History record EB.API -
- * E.GET.FT.DETAILS.TMB Conversion Routine Method SetValue
+ * E.GET.FT.DETAILS.TMB Conversion Routine Method SetValues
  * 
  *
  * @author Debesh

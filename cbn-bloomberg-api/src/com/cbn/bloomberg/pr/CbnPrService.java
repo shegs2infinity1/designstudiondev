@@ -24,7 +24,7 @@ import com.temenos.t24.api.complex.eb.servicehook.ServiceData;
 import com.temenos.t24.api.complex.eb.servicehook.SynchronousTransactionData;
 import com.temenos.t24.api.complex.eb.servicehook.TransactionControl;
 import com.temenos.t24.api.hook.system.ServiceLifecycle;
-import com.temenos.t24.api.records.cbnrepoplacement.CbnRepoPlacementRecord;
+import com.temenos.t24.api.tables.cbnrepoplacement.CbnRepoPlacementRecord;
 import com.temenos.t24.api.records.ofsrequestdetail.OfsRequestDetailRecord;
 import com.temenos.t24.api.system.DataAccess;
 import com.temenos.t24.api.system.Session;

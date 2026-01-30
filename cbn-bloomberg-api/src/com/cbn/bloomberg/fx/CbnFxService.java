@@ -30,7 +30,7 @@ import com.temenos.t24.api.records.forex.OurAccountPayClass;
 import com.temenos.t24.api.records.ofsrequestdetail.OfsRequestDetailRecord;
 import com.temenos.t24.api.system.DataAccess;
 import com.temenos.t24.api.system.Session;
-import com.temenos.t24.api.records.cbnbksdrequest.CbnBksdRequestRecord;
+import com.temenos.t24.api.tables.cbnbksdrequest.CbnBksdRequestRecord;
 
 
 /**

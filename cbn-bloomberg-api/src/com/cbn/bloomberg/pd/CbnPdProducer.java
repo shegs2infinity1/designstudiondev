@@ -30,7 +30,7 @@ import com.ibm.msg.client.wmq.common.CommonConstants;
  * @purpose: Publishes PD (Placement Deposit) transaction response messages to outbound channels. 
  *           Supports both FILE and WMQ (IBM MQ) output modes.
  *
- * @usage: Used by CbnPdService to publish response payloads after transaction processing.
+ * @usage: Used by CbnPdService to publish response payloads after transaction processings.
  */
 public class CbnPdProducer {
 

@@ -38,7 +38,8 @@ public class CbnScPayload {
      * @param originalItem Original JSON item from Bloomberg (optional, for context)
      * @return JSON string representation of the response
      */
-    public String buildResponse(String status, String message, String transactionRef, JsonNode originalItem) {
+    public String buildResponse(String status, String message, String transactionRef,
+            JsonNode originalItem) {
         try {
             ObjectNode response = objectMapper.createObjectNode();
 
@@ -72,7 +73,7 @@ public class CbnScPayload {
      */
     private String buildFallbackResponse(String status, String message, String transactionRef) {
         return String.format(
-                "{\"status\":\"%s\",\"message\":\"%s\",\"referenceId\":\"%s\",\"receivedAt\":\"%s\"}", status,
-                message, transactionRef, LocalDateTime.now().format(TIMESTAMP_FMT));
+                "{\"status\":\"%s\",\"message\":\"%s\",\"referenceId\":\"%s\",\"receivedAt\":\"%s\"}",
+                status, message, transactionRef, LocalDateTime.now().format(TIMESTAMP_FMT));
     }
 }

@@ -11,28 +11,23 @@ import java.util.logging.Logger;
 
 
 /**
- * Title: CbnTfProperties.java
- * 
- * @author Muanqee
- * 
- * @created: 2025-10-27
- * 
- * @purpose: Centralized configuration loader for Bloomberg integration. Loads properties from
- *           bloomberg.properties file located in TAFJ_HOME/conf or falls back to classpath.
- * 
- * @usage: CsdBloombergProperties
- * 
- *         props = CsdBloombergProperties.getInstance();
- * 
- *         String host = props.getWmqHost();
- * 
- * @modification Details:
- * 
- *               27/10/25 - Initial version for centralized MQ configuration management
- * 
- *               07/11/25 - Added TF module configuration support with variable resolution
- * 
- *               11/01/26 - Added new operation to process TF Deals Local App
+ * =============================================================================
+ * CSD API Title: CbnTfProperties.java
+ * Author: CSD Development Team
+ * Created: 2025-10-27
+ * Last Modified: 2026-02-03
+ * =============================================================================
+ *
+ * PURPOSE: Centralized configuration loader for Bloomberg integration. 
+ * Loads properties from bloomberg.properties file located in TAFJ_HOME/conf 
+ * or falls back to classpath.
+ *
+ * MODIFICATION HISTORY:
+ * - 2025-10-27 | Initial version for centralized MQ configuration management
+ * - 2025-11-07 | Added TF module configuration support with variable resolution
+ * - 2026-01-11 | Added new operation to process TF Deals Local App
+ * - 2026-02-03 | Added ST (SEC_TRADE) OFS version configuration
+ * =============================================================================
  */
 public final class CbnTfProperties {
 
@@ -64,9 +59,10 @@ public final class CbnTfProperties {
     }
 
     /**
-     * Loads properties from multiple locations in order of priority: 1.
-     * TAFJ_HOME/conf/bloomberg.properties 2.
-     * D:/Temenos/R24/bnk/UD/BLOOMBERG/conf/bloomberg.properties 3. Classpath (bloomberg.properties)
+     * Loads properties from multiple locations in order of priority:
+     * 1. TAFJ_HOME/conf/bloomberg.properties
+     * 2. D:/Temenos/R24/bnk/UD/BLOOMBERG/conf/bloomberg.properties
+     * 3. Classpath (bloomberg.properties)
      */
     private void loadProperties() {
         boolean loaded = false;
@@ -144,7 +140,6 @@ public final class CbnTfProperties {
     /**
      * Sets default properties if file cannot be loaded.
      */
-
     private void setDefaults() {
         // TF Adapter Node Constant Defaults
         properties.setProperty("tf.def.adapter", "WMQ");
@@ -184,17 +179,19 @@ public final class CbnTfProperties {
         // 3. PR Version Defaults
         properties.setProperty("tf.ofs.version.prdf", "EB.CBN.REPO.PLACEMENT,RAD");
         properties.setProperty("tf.ofs.version.prep", "EB.CBN.REPO.PLACEMENT,CBN.REPO");
-        // 4. PR Version Defaults
+        // 4. PD Version Defaults
         properties.setProperty("tf.ofs.version.pddf", "EB.CBN.PLACEMENT.DEPOSIT,RAD");
         properties.setProperty("tf.ofs.version.pdep", "EB.CBN.PLACEMENT.DEPOSIT,CBN");
-        // 5. SC Version Defaults
+        // 5. SC Version Defaults (SECURITY_MASTER)
         properties.setProperty("tf.ofs.version.scdf", "SECURITY.MASTER,RAD");
         properties.setProperty("tf.ofs.version.sctd", "SECURITY.MASTER,CBN");
-
+        // 6. ST Version Defaults (SEC_TRADE) - NEW
+        properties.setProperty("tf.ofs.version.stdf", "SEC.TRADE,RAD");
+        properties.setProperty("tf.ofs.version.sttd", "SEC.TRADE,CBN");
     }
 
     // ====
-    // ==== Default Adapter Node PROPERTIES GETTERS ====\
+    // ==== Default Adapter Node PROPERTIES GETTERS ====
     // ====
 
     public String getDefAdapter() {
@@ -202,7 +199,7 @@ public final class CbnTfProperties {
     }
 
     // ====
-    // ==== MQ PROPERTIES GETTERS ====\
+    // ==== MQ PROPERTIES GETTERS ====
     // ====
 
     public String getWmqHost() {
@@ -255,7 +252,7 @@ public final class CbnTfProperties {
     }
 
     public String getNfsOutboundDir() {
-        return resolveValue(properties.getProperty("tf.nfs.inbound.dir",
+        return resolveValue(properties.getProperty("tf.nfs.outbound.dir",
                 "D:\\Temenos\\R24\\bnk\\UD\\BLOOMBERG\\OUT\\TF"));
     }
 
@@ -270,7 +267,7 @@ public final class CbnTfProperties {
     }
 
     // ====
-    // ==== OFS Adapter PROPERTIES GETTERS ====\
+    // ==== OFS Adapter PROPERTIES GETTERS ====
     // ====
 
     public String getOfsSource() {
@@ -322,13 +319,22 @@ public final class CbnTfProperties {
         return properties.getProperty("tf.ofs.version.pdep", getOfsVersionPdDef());
     }
 
-    // 5. TF-SC OFS Versions
+    // 5. TF-SC OFS Versions (SECURITY_MASTER)
     public String getOfsVersionScDef() {
         return properties.getProperty("tf.ofs.version.scdf", "SECURITY.MASTER,RAD");
     }
 
     public String getOfsVersionSc() {
         return properties.getProperty("tf.ofs.version.sctd", getOfsVersionScDef());
+    }
+
+    // 6. TF-ST OFS Versions (SEC_TRADE) - NEW
+    public String getOfsVersionStDef() {
+        return properties.getProperty("tf.ofs.version.stdf", "SEC.TRADE,RAD");
+    }
+
+    public String getOfsVersionSt() {
+        return properties.getProperty("tf.ofs.version.sttd", getOfsVersionStDef());
     }
 
     // ====

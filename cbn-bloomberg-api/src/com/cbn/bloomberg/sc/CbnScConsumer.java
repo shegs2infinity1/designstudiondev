@@ -84,8 +84,8 @@ public final class CbnScConsumer {
      * @param pMessageText Message text to send
      * @throws JMSException if send operation fails
      */
-    public static void sendTextMessage(Connection pConnection, String pQueueName, String pMessageText)
-            throws JMSException {
+    public static void sendTextMessage(Connection pConnection, String pQueueName,
+            String pMessageText) throws JMSException {
         if (pConnection == null) {
             throw new IllegalArgumentException("Connection cannot be null");
         }
@@ -109,7 +109,8 @@ public final class CbnScConsumer {
             // Set IBM MQ specific properties for UTF-8 encoding
             try {
                 message.setIntProperty(WMQConstants.JMS_IBM_CHARACTER_SET, 1208); // UTF-8
-                message.setIntProperty(WMQConstants.JMS_IBM_ENCODING, WMQConstants.WMQ_ENCODING_NATIVE);
+                message.setIntProperty(WMQConstants.JMS_IBM_ENCODING,
+                        WMQConstants.WMQ_ENCODING_NATIVE);
             } catch (JMSException e) {
                 LOGGER.log(Level.WARNING, "[CbnScConsumer] Failed to set encoding properties", e);
             }
@@ -134,8 +135,9 @@ public final class CbnScConsumer {
      * @return Number of messages consumed
      * @throws JMSException if consumption fails
      */
-    public static int consumeMessages(Connection pConnection, String pQueueName, MessageProcessor pProcessor,
-            int pMaxMessages, long pReceiveTimeout) throws JMSException {
+    public static int consumeMessages(Connection pConnection, String pQueueName,
+            MessageProcessor pProcessor, int pMaxMessages, long pReceiveTimeout)
+            throws JMSException {
         if (pConnection == null) {
             throw new IllegalArgumentException("Connection cannot be null");
         }
@@ -187,7 +189,8 @@ public final class CbnScConsumer {
 
                     consumedCount++;
                     LOGGER.log(Level.FINE, "[CbnScConsumer] Successfully processed message {0}/{1}",
-                            new Object[] { consumedCount, pMaxMessages > 0 ? pMaxMessages : "unlimited" });
+                            new Object[] { consumedCount,
+                                    pMaxMessages > 0 ? pMaxMessages : "unlimited" });
 
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "[CbnScConsumer] Error processing message", e);

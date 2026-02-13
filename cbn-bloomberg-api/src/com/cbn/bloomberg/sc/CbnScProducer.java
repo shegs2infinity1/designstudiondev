@@ -27,7 +27,7 @@ import com.ibm.msg.client.wmq.common.CommonConstants;
  * 
  * @created 2025/01/22
  *
- * @purpose: Publishes SC (Security Trade) transaction response messages to outbound channels. 
+ * @purpose: Publishes SC (Security Trade) transaction response messages to outbound channels.
  *           Supports both FILE and WMQ (IBM MQ) output modes.
  *
  * @usage: Used by CbnScService to publish response payloads after transaction processing.
@@ -55,10 +55,8 @@ public class CbnScProducer {
                         adapterMode);
             }
         } catch (Exception e) {
-            yLogger.log(Level.SEVERE,
-                    String.format("[CbnScProducer] Error publishing response for txn=%s",
-                            transactionId),
-                    e);
+            yLogger.log(Level.SEVERE, String.format(
+                    "[CbnScProducer] Error publishing response for txn=%s", transactionId), e);
         }
     }
 
@@ -82,8 +80,7 @@ public class CbnScProducer {
             Path outFile = outDir.resolve(fileName);
 
             Files.write(outFile, jsonResponse.getBytes(StandardCharsets.UTF_8));
-            yLogger.log(Level.INFO, "[CbnScProducer] FILE: Published response to {0}",
-                    outFile);
+            yLogger.log(Level.INFO, "[CbnScProducer] FILE: Published response to {0}", outFile);
 
         } catch (Exception e) {
             yLogger.log(Level.SEVERE, "[CbnScProducer] FILE: Error writing response", e);
@@ -131,8 +128,7 @@ public class CbnScProducer {
     /**
      * Creates MQ connection factory from properties.
      */
-    private MQConnectionFactory createMqFactory(CbnTfProperties props)
-            throws JMSException {
+    private MQConnectionFactory createMqFactory(CbnTfProperties props) throws JMSException {
         MQConnectionFactory factory = new MQConnectionFactory();
         factory.setHostName(props.getProperty("tf.wmq.host", "172.22.105.46"));
         factory.setPort(Integer.parseInt(props.getProperty("tf.wmq.port", "1414")));

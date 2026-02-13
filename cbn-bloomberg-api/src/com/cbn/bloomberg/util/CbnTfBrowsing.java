@@ -13,13 +13,20 @@ import javax.jms.Message;
 import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
-import java.nio.charset.StandardCharsets;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+
 /**
- * Shared utility for Bloomberg message queue processing across all T24 modules.
+ * =============================================================================
+ * CSD API Title: CbnTfBrowsing.java
+ * Author: CSD Development Team
+ * Created: 2025-10-11
+ * Last Modified: 2026-02-03
+ * =============================================================================
  *
+ * PURPOSE: Shared utility for Bloomberg message queue processing across all T24 modules.
  * Supports selective message consumption pattern where each module's batch job
  * only consumes messages belonging to that module, leaving others on the queue.
  *
@@ -28,7 +35,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 2. FT (FUNDS_MOVEMENT)
  * 3. PD (PLACEMENT_DEPOSIT)
  * 4. PR (REPO_TRANSACTION)
- * 5. SC (SEC_TRADE)
+ * 5. SC (SECURITY_MASTER)
+ * 6. ST (SEC_TRADE)
+ *
+ * MODIFICATION HISTORY:
+ * - 2025-10-11 | Initial creation
+ * - 2026-02-03 | Added ST ModuleType for SEC_TRADE support
+ * =============================================================================
  */
 public final class CbnTfBrowsing {
 
@@ -52,8 +65,11 @@ public final class CbnTfBrowsing {
         /** 4. Repo Transactions - T24 Repository Placement application */
         PR("REPO", "PR"),
 
-        /** 5. Security Trading - T24 SEC.TRADE application */
-        SC("SECURITY_MASTER", "SC");
+        /** 5. Security Master - T24 SECURITY.MASTER application (static reference data) */
+        SC("SECURITY_MASTER", "SC"),
+
+        /** 6. Security Trade - T24 SEC.TRADE application (trading transactions) */
+        ST("SEC_TRADE", "ST");
 
         private final String jsonRootNode;
         private final String idPrefix;
@@ -68,7 +84,7 @@ public final class CbnTfBrowsing {
             return jsonRootNode;
         }
 
-        /** The prefix used in generated IDs (e.g., "FM" for FX module) */
+        /** The prefix used in generated IDs (e.g., "SC" for Security Master, "ST" for Sec Trade) */
         public String getIdPrefix() {
             return idPrefix;
         }
@@ -154,70 +170,29 @@ public final class CbnTfBrowsing {
             browseSession = pConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
             javax.jms.Queue queue = browseSession.createQueue("queue:///" + pQueueName);
             browser = browseSession.createBrowser(queue);
-            
+
             yLogger.log(Level.INFO, "[CbnTfBrowsing] Browsing queue {0} for {1} messages",
                     new Object[] { pQueueName, pModule.name() });
 
             @SuppressWarnings("unchecked")
             Enumeration<Message> messages = browser.getEnumeration();
-            
+
             while (messages.hasMoreElements()) {
                 Message m = messages.nextElement();
                 totalBrowsed++;
 
-                String body = null;
-                
-                // Handle both TextMessage and BytesMessage
-                if (m instanceof TextMessage) {
-                    body = ((TextMessage) m).getText();
-                } else if (m instanceof javax.jms.BytesMessage) {
-                    try {
-                        javax.jms.BytesMessage bytesMsg = (javax.jms.BytesMessage) m;
-                        byte[] bytes = new byte[(int) bytesMsg.getBodyLength()];
-                        bytesMsg.readBytes(bytes);
-                        body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-                    } catch (JMSException jmsEx) {
-                        yLogger.log(Level.WARNING,
-                                "[CbnTfBrowsing] Failed to read BytesMessage: {0}", 
-                                jmsEx.getMessage());
-                        skippedCount++;
-                        continue;
-                    }
-                } else {
-                    yLogger.log(Level.FINE,
-                            "[CbnTfBrowsing] Skipping unsupported message type: {0}",
-                            m.getClass().getSimpleName());
+                if (!(m instanceof TextMessage)) {
                     skippedCount++;
                     continue;
                 }
 
+                String body = ((TextMessage) m).getText();
                 if (body == null || body.trim().isEmpty()) {
                     skippedCount++;
                     continue;
                 }
 
                 String msgId = m.getJMSMessageID();
-            
-//            while (messages.hasMoreElements()) {
-//                Message m = messages.nextElement();
-//                totalBrowsed++;
-//
-//                if (!(m instanceof TextMessage)) {
-//                    skippedCount++;
-//                    continue;
-//                }
-//
-//                String body = ((TextMessage) m).getText();
-//                if (body == null || body.trim().isEmpty()) {
-//                    skippedCount++;
-//                    continue;
-//                }
-//
-//                String msgId = m.getJMSMessageID();
-                
-                yLogger.log(Level.FINE,
-                        "[CbnTfBrowsing] Processing {0} message: {1}",
-                        new Object[] { m.getClass().getSimpleName(), msgId });
 
                 try {
                     JsonNode root = pObjMapper.readTree(body);

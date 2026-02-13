@@ -34,19 +34,33 @@ import com.ibm.msg.client.wmq.common.CommonConstants;
 
 
 /**
- * Adapter manager for Bloomberg SC (Security Trade) flow. Handles FILE and WMQ transport 
- * concerns including message consumption, caching, acknowledgment, and failure persistence.
- * 
+ * =============================================================================
+ * CSD API Title: CbnScAdapter.java
+ * Author: CSD Development Team
+ * Created: 2026-01-07
+ * Last Modified: 2026-02-03
+ * =============================================================================
+ *
+ * PURPOSE: Adapter manager for Bloomberg SC (Securities) flow. Handles FILE and WMQ
+ * transport concerns including message consumption, caching, acknowledgment, and
+ * failure persistence for both SECURITY_MASTER and SEC_TRADE message types.
+ *
  * IMPORTANT: This adapter uses browse-then-selective-consume pattern via CbnTfBrowsing
- * to only process messages containing SECURITY_MASTER, leaving other module messages 
- * (FX, FT, PD, PR) on the queue for their respective batch jobs.
+ * to only process messages containing SECURITY_MASTER or SEC_TRADE, leaving other
+ * module messages (FX, FT, PD, PR) on the queue for their respective batch jobs.
+ *
+ * MODIFICATION HISTORY:
+ * - 2026-01-07 | Initial creation for SECURITY_MASTER
+ * - 2026-02-03 | Added SEC_TRADE support (dual module browsing, ST ID parsing)
+ * =============================================================================
  */
 public final class CbnScAdapter {
 
     private static final Logger yLogger = Logger.getLogger(CbnScAdapter.class.getName());
 
-    /** The module type this adapter handles */
-    private static final ModuleType MODULE = ModuleType.SC;
+    /** The module types this adapter handles */
+    private static final ModuleType MODULE_SC = ModuleType.SC; // SECURITY_MASTER
+    private static final ModuleType MODULE_ST = ModuleType.ST; // SEC_TRADE
 
     // Cache: JMSMessageID -> message body
     private static final ConcurrentHashMap<String, String> MQ_MESSAGE_CACHE = new ConcurrentHashMap<>();
@@ -56,6 +70,10 @@ public final class CbnScAdapter {
 
     // Timestamp format for filenames
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final String WMQ_QUE = "tf.wmq.queue";
+    private static final String WMQ_USR = "tf.wmq.username";
+    private static final String WMQ_KEY = "tf.wmq.password";
+    private static final String WMQ_ACK = "tf.wmq.ackledge";
 
     private CbnScAdapter() {
     }
@@ -65,8 +83,8 @@ public final class CbnScAdapter {
     // ====================================================================
 
     /**
-     * Scans directory for JSON files, reads content, counts SECURITY_MASTER, moves files to
-     * PROCESSED, then builds IDs using the moved path.
+     * Scans directory for JSON files, reads content, counts SECURITY_MASTER and SEC_TRADE,
+     * moves files to PROCESSED, then builds IDs using the moved path.
      */
     public static List<String> scanDirectoryIds(Path pDirectory, String pDirGlob,
             Path pDirProcessed, ObjectMapper pObjMapper) {
@@ -93,10 +111,15 @@ public final class CbnScAdapter {
                         continue;
                     }
                     JsonNode root = CbnTfBrowsing.normalizeRoot(pObjMapper.readTree(content));
-                    if (!MODULE.hasTransaction(root)) {
+
+                    // Check for either SECURITY_MASTER or SEC_TRADE
+                    boolean hasSc = MODULE_SC.hasTransaction(root);
+                    boolean hasSt = MODULE_ST.hasTransaction(root);
+
+                    if (!hasSc && !hasSt) {
                         yLogger.log(Level.WARNING,
-                                "[CbnScAdapter] FILE: no {0} in {1}", 
-                                new Object[] { MODULE.getJsonRootNode(), file });
+                                "[CbnScAdapter] FILE: no SECURITY_MASTER or SEC_TRADE in {0}",
+                                file);
                         // Move empty/invalid files as well to avoid re-scans
                         String ts = LocalDateTime.now().format(TS_FMT);
                         Path target = pDirProcessed.resolve(
@@ -117,11 +140,30 @@ public final class CbnScAdapter {
                     yLogger.log(Level.INFO, "[CbnScAdapter] FILE: moved {0} -> {1}",
                             new Object[] { file, target });
 
-                    JsonNode txnNode = MODULE.getTransaction(root);
-                    int size = CbnTfBrowsing.countTransactionItems(txnNode);
-                    for (int i = 0; i < size; i++) {
-                        ids.add("FILE|" + target.toString() + "|" + MODULE.getIdPrefix() + "|" + i);
+                    // Build IDs for SECURITY_MASTER
+                    if (hasSc) {
+                        JsonNode txnNode = MODULE_SC.getTransaction(root);
+                        int size = CbnTfBrowsing.countTransactionItems(txnNode);
+                        for (int i = 0; i < size; i++) {
+                            ids.add("FILE|" + target.toString() + "|" + MODULE_SC.getIdPrefix()
+                                    + "|" + i);
+                        }
+                        yLogger.log(Level.INFO,
+                                "[CbnScAdapter] FILE: found {0} SECURITY_MASTER items", size);
                     }
+
+                    // Build IDs for SEC_TRADE
+                    if (hasSt) {
+                        JsonNode txnNode = MODULE_ST.getTransaction(root);
+                        int size = CbnTfBrowsing.countTransactionItems(txnNode);
+                        for (int i = 0; i < size; i++) {
+                            ids.add("FILE|" + target.toString() + "|" + MODULE_ST.getIdPrefix()
+                                    + "|" + i);
+                        }
+                        yLogger.log(Level.INFO, "[CbnScAdapter] FILE: found {0} SEC_TRADE items",
+                                size);
+                    }
+
                 } catch (Exception ex) {
                     yLogger.log(Level.SEVERE,
                             String.format("[CbnScAdapter] FILE: error reading/moving %s", file),
@@ -148,14 +190,22 @@ public final class CbnScAdapter {
 
     /**
      * Parses a FILE-mode ID string into a FileItemRef.
+     * Supports both SC (SECURITY_MASTER) and ST (SEC_TRADE) prefixes.
      */
     public static FileItemRef parseFileItemRef(String pId) {
         if (pId == null || !pId.startsWith("FILE|")) return null;
         String[] parts = pId.split("\\|", 4);
-        if (parts.length != 4 || !MODULE.getIdPrefix().equals(parts[2])) return null;
+        if (parts.length != 4) return null;
+
+        // Accept both SC and ST prefixes
+        String prefix = parts[2];
+        if (!MODULE_SC.getIdPrefix().equals(prefix) && !MODULE_ST.getIdPrefix().equals(prefix)) {
+            return null;
+        }
+
         try {
             int idx = Integer.parseInt(parts[3]);
-            return new FileItemRef(Paths.get(parts[1]), idx);
+            return new FileItemRef(Paths.get(parts[1]), idx, prefix);
         } catch (NumberFormatException nfe) {
             return null;
         }
@@ -168,10 +218,12 @@ public final class CbnScAdapter {
 
         private final Path mFile;
         private final int mIndex;
+        private final String mModulePrefix;
 
-        FileItemRef(Path f, int i) {
+        FileItemRef(Path f, int i, String modulePrefix) {
             this.mFile = f;
             this.mIndex = i;
+            this.mModulePrefix = modulePrefix;
         }
 
         public Path file() {
@@ -181,6 +233,18 @@ public final class CbnScAdapter {
         public int index() {
             return mIndex;
         }
+
+        public String modulePrefix() {
+            return mModulePrefix;
+        }
+
+        public boolean isSecurityMaster() {
+            return MODULE_SC.getIdPrefix().equals(mModulePrefix);
+        }
+
+        public boolean isSecTrade() {
+            return MODULE_ST.getIdPrefix().equals(mModulePrefix);
+        }
     }
 
     // ====================================================================
@@ -188,12 +252,9 @@ public final class CbnScAdapter {
     // ====================================================================
 
     /**
-     * Browses the queue for messages containing SECURITY_MASTER, then selectively
+     * Browses the queue for messages containing SECURITY_MASTER or SEC_TRADE, then selectively
      * consumes only those messages. Messages for other modules (FX, FT, PD, PR) are
      * left on the queue for their respective batch jobs.
-     * 
-     * Uses CbnTfBrowsing for the browse phase to ensure consistent behavior
-     * across all module adapters.
      */
     public static List<String> extractIdsFromWmq(ObjectMapper pObjMapper) {
         List<String> ids = new ArrayList<>();
@@ -203,25 +264,41 @@ public final class CbnScAdapter {
             Properties props = loadMqProperties();
             MQConnectionFactory factory = createMqFactory(props);
 
-            String user = props.getProperty("tf.wmq.username", "").trim();
+            String user = props.getProperty(WMQ_USR, "").trim();
             connection = user.isEmpty() ? factory.createConnection()
-                    : factory.createConnection(user, props.getProperty("tf.wmq.password", ""));
+                    : factory.createConnection(user, props.getProperty(WMQ_KEY, ""));
             connection.start();
 
-            String queueName = props.getProperty("tf.wmq.queue");
+            String queueName = props.getProperty(WMQ_QUE);
 
-            // Phase 1: Browse to identify SC messages using shared utility
-            BrowseResult browseResult = CbnTfBrowsing.browseForModule(
-                    connection, queueName, MODULE, pObjMapper);
+            // Phase 1a: Browse to identify SC (SECURITY_MASTER) messages
+            BrowseResult browseResultSc = CbnTfBrowsing.browseForModule(connection, queueName,
+                    MODULE_SC, pObjMapper);
 
             yLogger.log(Level.INFO,
                     "[CbnScAdapter] WMQ: browse found {0} SC messages out of {1} total",
-                    new Object[] { browseResult.getMatchCount(), browseResult.getTotalBrowsed() });
+                    new Object[] { browseResultSc.getMatchCount(),
+                            browseResultSc.getTotalBrowsed() });
 
-            // Phase 2: Selectively consume matching messages
-            if (browseResult.hasMatches()) {
-                ids = consumeMatchingMessages(connection, props, 
-                        browseResult.getMatchingMessageIds(), pObjMapper);
+            // Phase 1b: Browse to identify ST (SEC_TRADE) messages
+            BrowseResult browseResultSt = CbnTfBrowsing.browseForModule(connection, queueName,
+                    MODULE_ST, pObjMapper);
+
+            yLogger.log(Level.INFO,
+                    "[CbnScAdapter] WMQ: browse found {0} ST messages out of {1} total",
+                    new Object[] { browseResultSt.getMatchCount(),
+                            browseResultSt.getTotalBrowsed() });
+
+            // Phase 2a: Selectively consume SC messages
+            if (browseResultSc.hasMatches()) {
+                ids.addAll(consumeMatchingMessages(connection, props,
+                        browseResultSc.getMatchingMessageIds(), pObjMapper, MODULE_SC));
+            }
+
+            // Phase 2b: Selectively consume ST messages
+            if (browseResultSt.hasMatches()) {
+                ids.addAll(consumeMatchingMessages(connection, props,
+                        browseResultSt.getMatchingMessageIds(), pObjMapper, MODULE_ST));
             }
 
         } catch (JMSException jmse) {
@@ -232,28 +309,28 @@ public final class CbnScAdapter {
             CbnTfBrowsing.closeQuietly(connection);
         }
 
-        yLogger.log(Level.INFO,
-                "[CbnScAdapter] WMQ: finished processing, total IDs generated={0}", ids.size());
+        yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: finished processing, total IDs generated={0}",
+                ids.size());
         return ids;
     }
 
     /**
      * Consumes messages by their JMSMessageID using selector-based retrieval.
      * Only messages identified during browse phase are consumed.
-     * Handles both TextMessage and BytesMessage formats.
      */
     private static List<String> consumeMatchingMessages(Connection pConnection, Properties pProps,
-            List<String> pMatchingIds, ObjectMapper pObjMapper) throws JMSException {
-        
+            List<String> pMatchingIds, ObjectMapper pObjMapper, ModuleType pModule)
+            throws JMSException {
+
         List<String> ids = new ArrayList<>();
-        String ackMode = pProps.getProperty("tf.wmq.ackledge", "auto").trim().toLowerCase();
+        String ackMode = pProps.getProperty(WMQ_ACK, "auto").trim().toLowerCase();
         int jmsAck = "auto".equals(ackMode) ? Session.AUTO_ACKNOWLEDGE : Session.CLIENT_ACKNOWLEDGE;
 
         Session consumeSession = null;
         try {
             consumeSession = pConnection.createSession(false, jmsAck);
             javax.jms.Queue queue = consumeSession.createQueue(
-                    "queue:///" + pProps.getProperty("tf.wmq.queue"));
+                    "queue:///" + pProps.getProperty(WMQ_QUE));
 
             for (String msgId : pMatchingIds) {
                 MessageConsumer consumer = null;
@@ -264,40 +341,19 @@ public final class CbnScAdapter {
 
                     // Short timeout since we know the message exists
                     Message m = consumer.receive(2000);
-                    
+
                     if (m == null) {
                         yLogger.log(Level.WARNING,
                                 "[CbnScAdapter] WMQ: message {0} no longer available", msgId);
                         continue;
                     }
 
-                    // Extract message body - handle both TextMessage and BytesMessage
-                    String body = null;
-                    if (m instanceof TextMessage) {
-                        body = ((TextMessage) m).getText();
-                        yLogger.log(Level.FINE, "[CbnScAdapter] WMQ: processing TextMessage {0}", msgId);
-                    } else if (m instanceof javax.jms.BytesMessage) {
-                        try {
-                            javax.jms.BytesMessage bytesMsg = (javax.jms.BytesMessage) m;
-                            byte[] bytes = new byte[(int) bytesMsg.getBodyLength()];
-                            bytesMsg.readBytes(bytes);
-                            body = new String(bytes, StandardCharsets.UTF_8);
-                            yLogger.log(Level.FINE, "[CbnScAdapter] WMQ: processing BytesMessage {0}", msgId);
-                        } catch (JMSException jmsEx) {
-                            yLogger.log(Level.SEVERE,
-                                    "[CbnScAdapter] WMQ: failed to read BytesMessage {0}", msgId);
-                            continue;
-                        }
-                    } else {
-                        yLogger.log(Level.WARNING,
-                                "[CbnScAdapter] WMQ: unsupported message type {0} for {1}",
-                                new Object[] { m.getClass().getSimpleName(), msgId });
+                    if (!(m instanceof TextMessage)) {
                         continue;
                     }
 
+                    String body = ((TextMessage) m).getText();
                     if (body == null || body.trim().isEmpty()) {
-                        yLogger.log(Level.WARNING,
-                                "[CbnScAdapter] WMQ: empty body for message {0}", msgId);
                         continue;
                     }
 
@@ -307,22 +363,20 @@ public final class CbnScAdapter {
 
                     try {
                         JsonNode root = CbnTfBrowsing.normalizeRoot(pObjMapper.readTree(body));
-                        JsonNode txnNode = MODULE.getTransaction(root);
+                        JsonNode txnNode = pModule.getTransaction(root);
                         int size = CbnTfBrowsing.countTransactionItems(txnNode);
 
                         for (int i = 0; i < size; i++) {
-                            ids.add("WMQ|" + cacheKey + "|" + MODULE.getIdPrefix() + "|" + i);
+                            ids.add("WMQ|" + cacheKey + "|" + pModule.getIdPrefix() + "|" + i);
                         }
 
                         yLogger.log(Level.INFO,
-                                "[CbnScAdapter] WMQ: consumed (ack={0}) {1} item(s) from {2}",
-                                new Object[] { ackMode, size, msgId });
+                                "[CbnScAdapter] WMQ: consumed (ack={0}) {1} {2} item(s) from {3}",
+                                new Object[] { ackMode, size, pModule.name(), msgId });
 
                     } catch (IOException ioe) {
-                        yLogger.log(Level.SEVERE, 
-                                "[CbnScAdapter] WMQ: JSON parse error on consume for {0}", msgId);
-                        yLogger.log(Level.SEVERE, "Body preview: " + 
-                                body.substring(0, Math.min(200, body.length())), ioe);
+                        yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: JSON parse error on consume",
+                                ioe);
                     }
 
                 } finally {
@@ -351,14 +405,22 @@ public final class CbnScAdapter {
 
     /**
      * Parses a WMQ-mode ID string into a MqItemRef.
+     * Supports both SC (SECURITY_MASTER) and ST (SEC_TRADE) prefixes.
      */
     public static MqItemRef parseMqItemRef(String pId) {
         if (pId == null || !pId.startsWith("WMQ|")) return null;
         String[] parts = pId.split("\\|", 4);
-        if (parts.length != 4 || !MODULE.getIdPrefix().equals(parts[2])) return null;
+        if (parts.length != 4) return null;
+
+        // Accept both SC and ST prefixes
+        String prefix = parts[2];
+        if (!MODULE_SC.getIdPrefix().equals(prefix) && !MODULE_ST.getIdPrefix().equals(prefix)) {
+            return null;
+        }
+
         try {
             int idx = Integer.parseInt(parts[3]);
-            return new MqItemRef(parts[1], idx);
+            return new MqItemRef(parts[1], idx, prefix);
         } catch (NumberFormatException nfe) {
             return null;
         }
@@ -371,10 +433,12 @@ public final class CbnScAdapter {
 
         private final String mMessageId;
         private final int mIndex;
+        private final String mModulePrefix;
 
-        MqItemRef(String mid, int i) {
+        MqItemRef(String mid, int i, String modulePrefix) {
             this.mMessageId = mid;
             this.mIndex = i;
+            this.mModulePrefix = modulePrefix;
         }
 
         public String messageId() {
@@ -383,6 +447,18 @@ public final class CbnScAdapter {
 
         public int index() {
             return mIndex;
+        }
+
+        public String modulePrefix() {
+            return mModulePrefix;
+        }
+
+        public boolean isSecurityMaster() {
+            return MODULE_SC.getIdPrefix().equals(mModulePrefix);
+        }
+
+        public boolean isSecTrade() {
+            return MODULE_ST.getIdPrefix().equals(mModulePrefix);
         }
     }
 
@@ -406,7 +482,7 @@ public final class CbnScAdapter {
 
             // manual ack via selector
             MQConnectionFactory factory = createMqFactory(props);
-            String user = props.getProperty("tf.wmq.username", "").trim();
+            String user = props.getProperty(WMQ_USR, "").trim();
             Connection connection = user.isEmpty() ? factory.createConnection()
                     : factory.createConnection(user, props.getProperty("tf.wmq.password", ""));
 
@@ -457,7 +533,7 @@ public final class CbnScAdapter {
             ensureDir(exceptsDir);
             String baseName = ref.file().getFileName().toString().replace(".json", "");
             String ts = LocalDateTime.now().format(TS_FMT);
-            String outName = String.format("%s_%s%d_%s.json", baseName, MODULE.getIdPrefix(), 
+            String outName = String.format("%s_%s%d_%s.json", baseName, ref.modulePrefix(),
                     ref.index(), ts);
             Path outFile = exceptsDir.resolve(outName);
             Files.copy(ref.file(), outFile, StandardCopyOption.REPLACE_EXISTING);
@@ -488,7 +564,7 @@ public final class CbnScAdapter {
             }
             String sanitizedId = ref.messageId().replaceAll("[^A-Za-z0-9_\\-]", "_");
             String ts = LocalDateTime.now().format(TS_FMT);
-            String outName = String.format("WMQ_%s_%s%d_%s.json", sanitizedId, MODULE.getIdPrefix(),
+            String outName = String.format("WMQ_%s_%s%d_%s.json", sanitizedId, ref.modulePrefix(),
                     ref.index(), ts);
             Path outFile = exceptsDir.resolve(outName);
             Files.write(outFile, body.getBytes(StandardCharsets.UTF_8));
@@ -533,7 +609,7 @@ public final class CbnScAdapter {
         mqProps.setProperty("tf.wmq.manager", props.getProperty("tf.wmq.manager", "QM_BLOOMBERG"));
         mqProps.setProperty("tf.wmq.queue",
                 props.getProperty("tf.wmq.inbound.queue", "TF.INBOUND.QUEUE"));
-        mqProps.setProperty("tf.wmq.username", props.getProperty("tf.wmq.username", ""));
+        mqProps.setProperty(WMQ_USR, props.getProperty(WMQ_USR, ""));
         mqProps.setProperty("tf.wmq.password", props.getProperty("tf.wmq.password", ""));
         mqProps.setProperty("tf.wmq.ackledge", props.getProperty("tf.wmq.ackledge", "auto"));
         return mqProps;

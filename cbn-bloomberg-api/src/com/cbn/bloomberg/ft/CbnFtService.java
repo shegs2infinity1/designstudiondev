@@ -305,7 +305,7 @@ public class CbnFtService extends ServiceLifecycle {
 
     /**
      * Phase 1: Process OFS request - retrieve transaction, map to FT record, submit
-     * to T24. NOW HANDLES SINGLE FUNDS_MOVEMENT OBJECT FORMAT
+     * to T24. NOW HANDLES SINGLE FUNDS_MOVEMENT OBJECT FORMATS
      */
     private void processOfsRequest(String pRecordId, List<SynchronousTransactionData> pTransactionData,
             List<TStructure> pRecords) {

@@ -50,7 +50,8 @@ public final class CbnScDserializer {
      * @return BloombergPayload object
      * @throws IOException if file read or parse fails
      */
-    public static BloombergPayload readPayload(Path pFile, ObjectMapper pObjMap) throws IOException {
+    public static BloombergPayload readPayload(Path pFile, ObjectMapper pObjMap)
+            throws IOException {
         String content = new String(Files.readAllBytes(pFile), StandardCharsets.UTF_8);
         if (content.trim().isEmpty()) {
             return new BloombergPayload();
@@ -67,7 +68,8 @@ public final class CbnScDserializer {
      * @return BloombergPayload object
      * @throws IOException if parse fails
      */
-    public static BloombergPayload readPayload(String pJson, ObjectMapper pObjMap) throws IOException {
+    public static BloombergPayload readPayload(String pJson, ObjectMapper pObjMap)
+            throws IOException {
         if (pJson == null || pJson.trim().isEmpty()) {
             return new BloombergPayload();
         }
@@ -83,7 +85,8 @@ public final class CbnScDserializer {
      * @return BloombergPayload object
      * @throws IOException if parse fails
      */
-    private static BloombergPayload parsePayload(String pJson, ObjectMapper pObjMap) throws IOException {
+    private static BloombergPayload parsePayload(String pJson, ObjectMapper pObjMap)
+            throws IOException {
         LOGGER.log(Level.INFO, "[CbnScDserializer] Starting deserialization of JSON message");
 
         // Parse the JSON
@@ -92,7 +95,8 @@ public final class CbnScDserializer {
 
         // Check if SECURITY_MASTER exists
         if (!rootNode.has("SECURITY_MASTER")) {
-            LOGGER.log(Level.SEVERE, "[CbnScDserializer] SECURITY_MASTER field not found in message");
+            LOGGER.log(Level.SEVERE,
+                    "[CbnScDserializer] SECURITY_MASTER field not found in message");
             throw new IOException("SECURITY_MASTER field not found in JSON");
         }
 
@@ -145,14 +149,16 @@ public final class CbnScDserializer {
      * @param pObjMap ObjectMapper for deserialization
      * @return List of synthetic transaction IDs
      */
-    public static List<String> extractIdsFromDirectory(Path pDir, String pGlob, ObjectMapper pObjMap) {
+    public static List<String> extractIdsFromDirectory(Path pDir, String pGlob,
+            ObjectMapper pObjMap) {
         List<String> ids = new ArrayList<>();
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pDir, pGlob)) {
             for (Path file : stream) {
                 try {
                     BloombergPayload payload = readPayload(file, pObjMap);
-                    int size = payload.getSecurityMaster() == null ? 0 : payload.getSecurityMaster().size();
+                    int size = payload.getSecurityMaster() == null ? 0
+                            : payload.getSecurityMaster().size();
 
                     for (int i = 0; i < size; i++) {
                         ids.add("FILE|" + file.toAbsolutePath() + "|FM|" + i);
@@ -207,7 +213,8 @@ class BloombergPayload {
 
     @Override
     public String toString() {
-        return "BloombergPayload{size=" + (mSecurityMaster == null ? 0 : mSecurityMaster.size()) + "}";
+        return "BloombergPayload{size=" + (mSecurityMaster == null ? 0 : mSecurityMaster.size())
+                + "}";
     }
 }
 
@@ -769,7 +776,7 @@ class SecurityMaster {
 
     @Override
     public String toString() {
-        return "SECURITY_MASTER{CustomerNo=" + mDescription + ", ShortName=" + mShortName + ", Mnemonic="
-                + mMnemonic + ", PriceCurrency=" + mPriceCurrency + "}";
+        return "SECURITY_MASTER{CustomerNo=" + mDescription + ", ShortName=" + mShortName
+                + ", Mnemonic=" + mMnemonic + ", PriceCurrency=" + mPriceCurrency + "}";
     }
 }

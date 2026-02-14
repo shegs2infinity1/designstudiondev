@@ -13,6 +13,7 @@ import java.util.logging.Logger;
 
 import com.cbn.bloomberg.pd.CbnPdAdapter.FileItemRef;
 import com.cbn.bloomberg.pd.CbnPdAdapter.MqItemRef;
+import com.cbn.bloomberg.util.*;
 import com.cbn.bloomberg.util.CbnTfProperties;
 import com.cbn.bloomberg.util.CbnTfLogTracer;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -84,6 +85,7 @@ public class CbnPdService extends ServiceLifecycle {
     private final String mAdapterFlag = CONFIG.getDefAdapter();
     private final String mOfsSource = CONFIG.getOfsSource();
     private final String mOfsVersion = CONFIG.getOfsVersionPd();
+    private final String mOfsVersionFgn = CONFIG.getOfsVersionPdFgn();
     private final String mOfsFunction = CONFIG.getOfsFunction();
 
     private final Path mInboundDir = Paths.get(CONFIG.getNfsInboundDir());
@@ -110,11 +112,13 @@ public class CbnPdService extends ServiceLifecycle {
         String originalId;
         JsonNode originalItem;
         String adapterMode;
+        String bloombergId;
 
-        TransactionMetadata(String pOriginalId, JsonNode pOriginalItem, String pAdapterMode) {
+        TransactionMetadata(String pOriginalId, JsonNode pOriginalItem, String pAdapterMode,String pBloombergId) {
             this.originalId = pOriginalId;
             this.originalItem = pOriginalItem;
             this.adapterMode = pAdapterMode;
+            this.bloombergId = pBloombergId;
         }
     }
 
@@ -349,6 +353,7 @@ public class CbnPdService extends ServiceLifecycle {
         String pMessage = "Unknown error";
         JsonNode pOriginalItem = null;
         String pResponseId = null;
+        String bloombergId = null;
 
         try {
             yLOGGER.log(Level.INFO, LOG_PREFIX + "=== processOfsRequest() START ===");
@@ -358,12 +363,14 @@ public class CbnPdService extends ServiceLifecycle {
 
             // Step 1: Retrieve the item based on adapter mode
             JsonNode pItem = retrieveTransactionItem(pRecordId);
+            CbnTfBackup.backupMessage(pItem.toString(), "PLACEMENTS", pRecordId);
+            bloombergId = pItem.path("BLOOMBERG_ID").asText("");
             if (pItem == null) {
                 pMessage = "Item not found or invalid PLACEMENTS";
                 yLOGGER.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
                         new Object[] { pMessage, pRecordId });
                 persistToExcepts(pRecordId, pMessage);
-                publishResponse(pRecordId, pStatus, pMessage, "", null);
+                publishResponse(pRecordId, pStatus, pMessage, "", null,bloombergId);
                 return;
             }
 
@@ -378,7 +385,7 @@ public class CbnPdService extends ServiceLifecycle {
                 yLOGGER.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
                         new Object[] { pMessage, pRecordId });
                 persistToExcepts(pRecordId, pMessage);
-                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem, bloombergId);
                 return;
             }
 
@@ -397,7 +404,7 @@ public class CbnPdService extends ServiceLifecycle {
                 yLOGGER.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
                         new Object[] { pMessage, pRecordId });
                 persistToExcepts(pRecordId, pMessage);
-                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
                 return;
             }
 
@@ -407,7 +414,7 @@ public class CbnPdService extends ServiceLifecycle {
             // Step 5: Store transaction metadata in cache for Phase 2
             synchronized (TRANSACTION_CACHE) {
                 TRANSACTION_CACHE.put(pResponseId,
-                        new TransactionMetadata(pRecordId, pOriginalItem, mAdapterFlag));
+                        new TransactionMetadata(pRecordId, pOriginalItem, mAdapterFlag,bloombergId));
             }
 
             yLOGGER.log(Level.INFO,
@@ -421,21 +428,21 @@ public class CbnPdService extends ServiceLifecycle {
                     () -> LOG_PREFIX + "processOfsRequest: JSON parse error for id=" + pRecordId);
             pMessage = "JSON parse error: " + jpe.getMessage();
             persistToExcepts(pRecordId, pMessage);
-            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
 
         } catch (java.io.IOException ioe) {
             yLOGGER.log(Level.SEVERE, ioe,
                     () -> LOG_PREFIX + "processOfsRequest: I/O error for id=" + pRecordId);
             pMessage = "I/O error: " + ioe.getMessage();
             persistToExcepts(pRecordId, pMessage);
-            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
 
         } catch (RuntimeException re) {
             yLOGGER.log(Level.SEVERE, re,
                     () -> LOG_PREFIX + "processOfsRequest: Runtime error for id=" + pRecordId);
             pMessage = "Runtime error: " + re.getMessage();
             persistToExcepts(pRecordId, pMessage);
-            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
         } finally {
             // Cleanup
             pOriginalItem = null;
@@ -488,7 +495,7 @@ public class CbnPdService extends ServiceLifecycle {
                     yLOGGER.log(Level.INFO, LOG_PREFIX
                             + "checkOfsResponse: OFS response message retrieved successfully");
                     yLOGGER.log(Level.INFO, LOG_PREFIX + "checkOfsResponse: ORD OUT MSG retrieved");
-
+                    
                     // Check for OFS errors
                     if (pMsgOut.contains("/-1/")) {
                         pStatus = MSG_FAILURE;
@@ -506,10 +513,12 @@ public class CbnPdService extends ServiceLifecycle {
                                 LOG_PREFIX + "checkOfsResponse: Transaction successful: ref={0}",
                                 pTransactRef);
                     }
-
+                    
+                    
+                    
                     // Publish response
                     publishResponse(pMetadata.originalId, pStatus, pMessage, pTransactRef,
-                            pMetadata.originalItem);
+                            pMetadata.originalItem,pMetadata.bloombergId);
 
                     // Acknowledge MQ message on success
                     if (MSG_SUCCESS.equalsIgnoreCase(pStatus)
@@ -542,7 +551,7 @@ public class CbnPdService extends ServiceLifecycle {
                     e);
             pMessage = "Error checking OFS response: " + e.getMessage();
             publishResponse(pMetadata.originalId, pStatus, pMessage, pTransactRef,
-                    pMetadata.originalItem);
+                    pMetadata.originalItem, pMetadata.bloombergId);
 
             // Remove from cache on error
             synchronized (TRANSACTION_CACHE) {
@@ -554,7 +563,7 @@ public class CbnPdService extends ServiceLifecycle {
                     LOG_PREFIX + "checkOfsResponse: Unexpected error in checkOfsResponse", e);
             pMessage = "Unexpected error: " + e.getMessage();
             publishResponse(pMetadata.originalId, pStatus, pMessage, pTransactRef,
-                    pMetadata.originalItem);
+                    pMetadata.originalItem, pMetadata.bloombergId);
 
             // Remove from cache on error
             synchronized (TRANSACTION_CACHE) {
@@ -669,7 +678,7 @@ public class CbnPdService extends ServiceLifecycle {
             yLOGGER.log(Level.INFO, LOG_PREFIX
                     + "buildDepoRecord: Building Deposit Placements record for responseId: {0}",
                     pResponseId);
-
+            
             // Extract fields
             String sCustomerNo = pData.getOrDefault("CNUM", "");
             String sCurrency = pData.getOrDefault("TCCY", "");
@@ -701,6 +710,7 @@ public class CbnPdService extends ServiceLifecycle {
             String sNewInterestRate = pData.getOrDefault("NINT", "");
             String sCapitalization = pData.getOrDefault("TCAP", "");
             String sPrevPrinAmount = pData.getOrDefault("CPPAMTTY", "");
+            String sBloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
 
             // Validate required fields
             if (sCustomerNo.isEmpty() || sCurrency.isEmpty() || sPrincipal.isEmpty()) {
@@ -744,13 +754,24 @@ public class CbnPdService extends ServiceLifecycle {
             pPlaceDepoRecord.setNewIntRate(sNewInterestRate);
             pPlaceDepoRecord.setCapitalisation(sCapitalization);
             pPlaceDepoRecord.setPrevPrinAmount(sPrevPrinAmount);
+            
 
             yLOGGER.log(Level.INFO, "[CbnPdService] Adding record: {0}", pPlaceDepoRecord);
 
             // Create transaction envelope with responseId - FIXED: Removed companyId
             pTxnData = new SynchronousTransactionData();
             pTxnData.setResponseId(pResponseId);
-            pTxnData.setVersionId(mOfsVersion);
+            
+            yLOGGER.log(Level.INFO, "[CbnPdService] Checking sFgnFedAcct: {0}", sFgnFedAcct);
+            
+            if (sFgnFedAcct == "") {
+                pTxnData.setVersionId(mOfsVersion);
+                yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersion);
+            }
+            if (sFgnFedAcct != "") {
+                pTxnData.setVersionId(mOfsVersionFgn);
+                yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersionFgn);
+            } 
             pTxnData.setFunction(mOfsFunction);
             pTxnData.setNumberOfAuthoriser("0");
             pTxnData.setSourceId(mOfsSource);
@@ -779,12 +800,13 @@ public class CbnPdService extends ServiceLifecycle {
      * Builds response and publishes using CbnPdPayload and CbnPdProducer.
      */
     private void publishResponse(String pId, String pStatus, String pMessage, String pTransactRef,
-            JsonNode pOriginalItem) {
+            JsonNode pOriginalItem, String bloombergId) {
         try {
             String pJsonResponse = mPayloadHandler.buildResponse(pStatus, pMessage, pTransactRef,
-                    pOriginalItem);
+                    pOriginalItem, bloombergId);
             yLOGGER.log(Level.INFO, LOG_PREFIX + "publishResponse: Built response: {0}",
                     pJsonResponse);
+            CbnTfBackup.backupMessage(pJsonResponse, "PLACEMENTS", pTransactRef);
             mProducer.publishResponse(pJsonResponse, mAdapterFlag, pId);
         } catch (Exception e) {
             yLOGGER.log(Level.SEVERE, e,

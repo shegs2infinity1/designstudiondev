@@ -316,7 +316,10 @@ public final class CbnTfProperties {
     }
 
     public String getOfsVersionPd() {
-        return properties.getProperty("tf.ofs.version.pdep", getOfsVersionPdDef());
+        return properties.getProperty("tf.ofs.version.pdtd", getOfsVersionPdDef());
+    }
+    public String getOfsVersionPdFgn() {
+        return properties.getProperty("tf.ofs.version.pdfng", getOfsVersionPdDef());
     }
 
     // 5. TF-SC OFS Versions (SECURITY_MASTER)

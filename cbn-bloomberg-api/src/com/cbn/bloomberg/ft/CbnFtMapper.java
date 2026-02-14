@@ -152,6 +152,7 @@ public final class CbnFtMapper {
         String cAmt = asText(p_fm, "CREDIT_AMOUNT");
         String cDat = asText(p_fm, "CREDIT_VALUE_DATE");
         String cRef = asText(p_fm, "CREDIT_THIER_REF");
+        String bloombergId = asText(p_fm, "BLOOMBERG_ID");
 
         map.put("DACC", safe(dAcc));
         map.put("DCCY", safe(dCcy));
@@ -165,6 +166,7 @@ public final class CbnFtMapper {
         map.put("CAMT", normalizeAmount(safe(cAmt)));
         map.put("CDAT", safe(cDat));
         map.put("CREF", safe(cRef));
+        map.put("BLOOMBERG_ID", safe(bloombergId));
         return map;
     }
 

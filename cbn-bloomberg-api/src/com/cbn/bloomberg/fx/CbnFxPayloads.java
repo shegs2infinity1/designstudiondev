@@ -46,13 +46,14 @@ public class CbnFxPayloads {
      * @return JSON string representation of the response
      */
     public String buildResponse(String status, String message, String transactionRef,
-            JsonNode originalItem) {
+            JsonNode originalItem, String bloombergId) {
         try {
             ObjectNode response = objectMapper.createObjectNode();
 
             // Core response fields
             response.put("status", status);
             response.put("transactionRef", transactionRef);
+            response.put("BLOOMBERG_ID", bloombergId != null ? bloombergId : "");
             response.put("message", message);
             response.put("received_at", LocalDateTime.now().format(TIMESTAMP_FMT));
             response.put("module", "FOREX");

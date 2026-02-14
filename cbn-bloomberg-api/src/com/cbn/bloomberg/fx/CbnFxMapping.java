@@ -158,6 +158,7 @@ public final class CbnFxMapping {
         String bkInf = asText(pFm, "BK_TO_BK_INF");
         String irBuy = asText(pFm, "INT_RATE_BUY");
         String irSel = asText(pFm, "INT_RATE_SELL");
+        String bloombergId = asText(pFm, "BLOOMBERG_ID");
 
         map.put("CPTY", safe(cpPty));
         map.put("DTYP", safe(dlTpe));
@@ -182,6 +183,7 @@ public final class CbnFxMapping {
         map.put("BKBK", safe(bkInf));
         map.put("INTB", safe(irBuy));
         map.put("INTS", safe(irSel));
+        map.put("BLOOMBERG_ID", safe(bloombergId));
 
         // Map deal-specific fields based on DEAL_TYPE
         if (dlTpe != null && !dlTpe.trim().isEmpty()) {

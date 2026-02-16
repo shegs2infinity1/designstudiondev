@@ -39,7 +39,7 @@ public class CbnPrPayload {
      *                       context)
      * @return JSON string representation of the response
      */
-    public String buildResponse(String status, String message, String transactionRef, JsonNode originalItem) {
+    public String buildResponse(String status, String message, String transactionRef, JsonNode originalItem,String bloombergId) {
         try {
             ObjectNode response = objectMapper.createObjectNode();
 
@@ -47,6 +47,7 @@ public class CbnPrPayload {
             response.put("status", status);
             response.put("message", message);
             response.put("transactionRef", transactionRef);
+            response.put("BLOOMBERG_ID", bloombergId != null ? bloombergId : "");
             response.put("timestamp", LocalDateTime.now().format(TIMESTAMP_FMT));
             response.put("module", "REPO");
         

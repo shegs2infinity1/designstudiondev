@@ -224,6 +224,8 @@ public final class CbnScMapper {
         String cDte = asText(pFm, "FIRST_CPN_DATE");
         String iSin = asText(pFm, "ISIN");
         String sDte = asText(pFm, "SETUP_DATE");
+        String bloombergId = asText(pFm, "BLOOMBERG_ID");
+        
 
         map.put("CNME", safe(cNme));
         map.put("SDES", safe(sDes));
@@ -251,6 +253,7 @@ public final class CbnScMapper {
         map.put("CDTE", normalizeDateT24(safe(cDte)));
         map.put("ISIN", safe(iSin));
         map.put("SDTE", normalizeDateT24(safe(sDte)));
+        map.put("BLOOMBERG_ID", safe(bloombergId));
 
         LOGGER.log(Level.INFO, "[CbnScMapper] SECURITY_MASTER mapping complete: {0} fields",
                 map.size());
@@ -303,6 +306,7 @@ public final class CbnScMapper {
         mapStAccounts(pSt, map);
         mapStBrokerInfo(pSt, map);
         mapStDescription(pSt, map);
+        mapStBloombergId(pSt, map);
 
         LOGGER.log(Level.INFO, "[CbnScMapper] SEC_TRADE mapping complete: {0} fields", map.size());
         return map;
@@ -367,6 +371,12 @@ public final class CbnScMapper {
     private static void mapStCharges(JsonNode pSt, Map<String, String> pMap) {
         pMap.put("CHCD", safe(asText(pSt, "CHARGE_CODE")));
         pMap.put("CHAM", normalizeAmount(safe(asText(pSt, "CHARGE_AMOUNT"))));
+    }
+    /**
+     * Maps Bloomberg ID from SEC_TRADE.
+     */
+    private static void mapStBloombergId(JsonNode pSt, Map<String, String> pMap) {
+        pMap.put("BLOOMBERG_ID", safe(asText(pSt, "BLOOMBERG_ID")));
     }
 
     /**

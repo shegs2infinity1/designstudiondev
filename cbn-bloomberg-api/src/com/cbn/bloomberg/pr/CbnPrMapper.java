@@ -152,6 +152,7 @@ public final class CbnPrMapper {
         String dAcc = asText(pFm, "DRAWDOWN_ACCOUNT");
         String iAcc = asText(pFm, "DRAWIN_ACCOUNT");
         String tInt = asText(pFm, "TOTAL_INTEREST_AMT");
+        String bloombergId = asText(pFm, "BLOOMBERG_ID");
 
         map.put("CPTY", safe(cPty));
         map.put("DCCY", safe(dCcy));
@@ -165,6 +166,7 @@ public final class CbnPrMapper {
         map.put("DDAC", safe(dAcc));
         map.put("DIAC", safe(iAcc));
         map.put("TINT", safe(tInt));
+        map.put("BLOOMBERG_ID", safe(bloombergId));
         return map;
     }
 

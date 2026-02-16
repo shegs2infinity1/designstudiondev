@@ -14,6 +14,7 @@ import java.util.logging.Logger;
 import com.cbn.bloomberg.pr.CbnPrAdapter.FileItemRef;
 import com.cbn.bloomberg.pr.CbnPrAdapter.MqItemRef;
 import com.cbn.bloomberg.util.CbnTfProperties;
+import com.cbn.bloomberg.util.CbnTfBackup;
 import com.cbn.bloomberg.util.CbnTfLogTracer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -94,11 +95,13 @@ public class CbnPrService extends ServiceLifecycle {
         String originalId;
         JsonNode originalItem;
         String adapterMode;
+        String bloombergId;
 
-        TransactionMetadata(String pOriginalId, JsonNode pOriginalItem, String pAdapterMode) {
+        TransactionMetadata(String pOriginalId, JsonNode pOriginalItem, String pAdapterMode, String pBloombergId) {
             this.originalId = pOriginalId;
             this.originalItem = pOriginalItem;
             this.adapterMode = pAdapterMode;
+            this.bloombergId = pBloombergId;
         }
     }
 
@@ -329,6 +332,7 @@ public class CbnPrService extends ServiceLifecycle {
         String pMessage = "Unknown error";
         JsonNode pOriginalItem = null;
         String pResponseId = null;
+        String bloombergId = null;
 
         try {
             LOG.log(Level.INFO, LOG_PREFIX + "=== processOfsRequest() START ===");
@@ -338,12 +342,15 @@ public class CbnPrService extends ServiceLifecycle {
 
             // Step 1: Retrieve the item based on adapter mode
             JsonNode pItem = retrieveTransactionItem(pRecordId);
+            
+            CbnTfBackup.backupMessage(pItem.toString(), "REPO", pRecordId);
+            bloombergId = pItem.path("BLOOMBERG_ID").asText("");
             if (pItem == null) {
                 pMessage = "Item not found or invalid REPO";
                 LOG.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
                         new Object[] { pMessage, pRecordId });
                 persistToExcepts(pRecordId, pMessage);
-                publishResponse(pRecordId, pStatus, pMessage, "", null);
+                publishResponse(pRecordId, pStatus, pMessage, "", null, bloombergId);
                 return;
             }
 
@@ -358,7 +365,7 @@ public class CbnPrService extends ServiceLifecycle {
                 LOG.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
                         new Object[] { pMessage, pRecordId });
                 persistToExcepts(pRecordId, pMessage);
-                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem, bloombergId);
                 return;
             }
 
@@ -377,7 +384,7 @@ public class CbnPrService extends ServiceLifecycle {
                 LOG.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
                         new Object[] { pMessage, pRecordId });
                 persistToExcepts(pRecordId, pMessage);
-                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+                publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
                 return;
             }
 
@@ -387,7 +394,7 @@ public class CbnPrService extends ServiceLifecycle {
             // Step 5: Store transaction metadata in cache for Phase 2
             synchronized (TRANSACTION_CACHE) {
                 TRANSACTION_CACHE.put(pResponseId,
-                        new TransactionMetadata(pRecordId, pOriginalItem, mAdapterFlag));
+                        new TransactionMetadata(pRecordId, pOriginalItem, mAdapterFlag,bloombergId));
             }
 
             LOG.log(Level.INFO,
@@ -401,21 +408,21 @@ public class CbnPrService extends ServiceLifecycle {
                     () -> LOG_PREFIX + "processOfsRequest: JSON parse error for id=" + pRecordId);
             pMessage = "JSON parse error: " + jpe.getMessage();
             persistToExcepts(pRecordId, pMessage);
-            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
 
         } catch (java.io.IOException ioe) {
             LOG.log(Level.SEVERE, ioe,
                     () -> LOG_PREFIX + "processOfsRequest: I/O error for id=" + pRecordId);
             pMessage = "I/O error: " + ioe.getMessage();
             persistToExcepts(pRecordId, pMessage);
-            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
 
         } catch (RuntimeException re) {
             LOG.log(Level.SEVERE, re,
                     () -> LOG_PREFIX + "processOfsRequest: Runtime error for id=" + pRecordId);
             pMessage = "Runtime error: " + re.getMessage();
             persistToExcepts(pRecordId, pMessage);
-            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem);
+            publishResponse(pRecordId, pStatus, pMessage, "", pOriginalItem,bloombergId);
         } finally {
             // Cleanup
             pOriginalItem = null;
@@ -488,7 +495,7 @@ public class CbnPrService extends ServiceLifecycle {
 
                     // Publish response
                     publishResponse(pMetadata.originalId, pStatus, pMessage, pTransactRef,
-                            pMetadata.originalItem);
+                            pMetadata.originalItem, pMetadata.bloombergId);
 
                     // Acknowledge MQ message on success
                     if (MSG_SUCCESS.equalsIgnoreCase(pStatus)
@@ -520,7 +527,7 @@ public class CbnPrService extends ServiceLifecycle {
             LOG.log(Level.SEVERE, LOG_PREFIX + "checkOfsResponse: Error checking OFS response", e);
             pMessage = "Error checking OFS response: " + e.getMessage();
             publishResponse(pMetadata.originalId, pStatus, pMessage, pTransactRef,
-                    pMetadata.originalItem);
+                    pMetadata.originalItem,pMetadata.bloombergId);
 
             // Remove from cache on error
             synchronized (TRANSACTION_CACHE) {
@@ -532,7 +539,7 @@ public class CbnPrService extends ServiceLifecycle {
                     LOG_PREFIX + "checkOfsResponse: Unexpected error in checkOfsResponse", e);
             pMessage = "Unexpected error: " + e.getMessage();
             publishResponse(pMetadata.originalId, pStatus, pMessage, pTransactRef,
-                    pMetadata.originalItem);
+                    pMetadata.originalItem,pMetadata.bloombergId);
 
             // Remove from cache on error
             synchronized (TRANSACTION_CACHE) {
@@ -721,10 +728,10 @@ public class CbnPrService extends ServiceLifecycle {
      * Builds response and publishes using CsdBloombergFtPayload and CsdBloombergFtProducer.
      */
     private void publishResponse(String pId, String pStatus, String pMessage, String pTransactRef,
-            JsonNode pOriginalItem) {
+            JsonNode pOriginalItem, String bloombergId ) {
         try {
             String pJsonResponse = mPayloadHandler.buildResponse(pStatus, pMessage, pTransactRef,
-                    pOriginalItem);
+                    pOriginalItem,bloombergId);
             LOG.log(Level.INFO, LOG_PREFIX + "publishResponse: Built response: {0}", pJsonResponse);
             mProducer.publishResponse(pJsonResponse, mAdapterFlag, pId);
         } catch (Exception e) {

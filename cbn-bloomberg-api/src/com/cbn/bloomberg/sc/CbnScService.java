@@ -14,6 +14,7 @@ import java.util.logging.Logger;
 import com.cbn.bloomberg.sc.CbnScAdapter.FileItemRef;
 import com.cbn.bloomberg.sc.CbnScAdapter.MqItemRef;
 import com.cbn.bloomberg.util.CbnTfProperties;
+import com.cbn.bloomberg.util.CbnTfBackup;
 import com.cbn.bloomberg.util.CbnTfLogTracer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -116,13 +117,15 @@ public class CbnScService extends ServiceLifecycle {
         JsonNode originalItem;
         String adapterMode;
         String messageType; // "SC" or "ST"
+        String bloombergId;
 
         TransactionMetadata(String pOriginalId, JsonNode pOriginalItem, String pAdapterMode,
-                String pMessageType) {
+                String pMessageType,String pBloombergId) {
             this.originalId = pOriginalId;
             this.originalItem = pOriginalItem;
             this.adapterMode = pAdapterMode;
             this.messageType = pMessageType;
+            this.bloombergId = pBloombergId;
         }
     }
 
@@ -382,7 +385,7 @@ public class CbnScService extends ServiceLifecycle {
             } else {
                 pData = CbnScMapper.mapSecurityMasterToSc(pItem);
             }
-
+            
             if (pData == null || pData.isEmpty()) {
                 pMessage = "Mapping returned no data";
                 yLOGGER.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: {0} for id={1}",
@@ -394,7 +397,14 @@ public class CbnScService extends ServiceLifecycle {
 
             yLOGGER.log(Level.FINE, LOG_PREFIX + "processOfsRequest: Mapped data for id={0}",
                     pRecordId);
-
+            
+            String bloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
+            try {
+                com.cbn.bloomberg.util.CbnTfBackup.backupMessage(pOriginalItem.toString(), bloombergId, pMessageType);
+                yLOGGER.log(Level.INFO, LOG_PREFIX + "processOfsRequest: Message backed up for bloombergId: {0}", bloombergId);
+            } catch (Exception e) {
+                yLOGGER.log(Level.WARNING, LOG_PREFIX + "processOfsRequest: Failed to backup message: {0}", e.getMessage());
+            }
             // Step 4: Build responseId
             pResponseId = buildResponseId(pRecordId);
             yLOGGER.log(Level.INFO, LOG_PREFIX + "processOfsRequest: Built responseId: {0}",
@@ -422,11 +432,13 @@ public class CbnScService extends ServiceLifecycle {
             yLOGGER.log(Level.INFO, LOG_PREFIX
                     + "processOfsRequest: Successfully prepared OFS transaction for {0} update",
                     pMessageType);
-
+             bloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
+            yLOGGER.log(Level.INFO, LOG_PREFIX + "processOfsRequest: Extracted BLOOMBERG_ID: {0}",
+                    bloombergId);
             // Step 6: Store transaction metadata in cache for Phase 2 (include message type)
             synchronized (TRANSACTION_CACHE) {
                 TRANSACTION_CACHE.put(pResponseId, new TransactionMetadata(pRecordId, pOriginalItem,
-                        mAdapterFlag, pMessageType));
+                        mAdapterFlag, pMessageType, bloombergId));
             }
 
             yLOGGER.log(Level.INFO,
@@ -549,6 +561,17 @@ public class CbnScService extends ServiceLifecycle {
                         yLOGGER.log(Level.INFO,
                                 LOG_PREFIX + "checkOfsResponse: MQ message acknowledged for id={0}",
                                 pMetadata.originalId);
+                        try {
+                            CbnTfBackup.backupMessage(pMessage, "SC", pMetadata.originalId);
+                            
+                            yLOGGER.log(Level.INFO,
+                                    LOG_PREFIX + "checkOfsResponse: Backed up message for BLOOMBERG_ID={0}",
+                                    pMetadata.bloombergId);
+                        } catch (Exception ex) {
+                            yLOGGER.log(Level.WARNING, ex,
+                                    () -> LOG_PREFIX + "checkOfsResponse: Failed to backup message for BLOOMBERG_ID="
+                                            + pMetadata.bloombergId);
+                        }
                     }
 
                     synchronized (TRANSACTION_CACHE) {
@@ -750,6 +773,7 @@ public class CbnScService extends ServiceLifecycle {
             String sFirstCpnDate = pData.getOrDefault("CDTE", "");
             String sIsin = pData.getOrDefault("ISIN", "");
             String sSetupDate = pData.getOrDefault("SDTE", "");
+            String sBloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
 
             // Validate required fields
             if (sMnemonic.isEmpty() || sShortName.isEmpty() || sSecurityCurrency.isEmpty()) {
@@ -794,6 +818,7 @@ public class CbnScService extends ServiceLifecycle {
             pSecurityMasterRecord.setFirstCouponDate(sFirstCpnDate);
             pSecurityMasterRecord.setISIN(sIsin);
             pSecurityMasterRecord.setSetUpDate(sSetupDate);
+            //pSecurityMasterRecord.setBloombergId(sBloombergId);
 
             yLOGGER.log(Level.INFO, LOG_PREFIX + "buildScRecord: Adding record: {0}",
                     pSecurityMasterRecord);
@@ -861,6 +886,7 @@ public class CbnScService extends ServiceLifecycle {
             String sIssueDate = pData.getOrDefault("ISDT", "");
             String sMaturityDate = pData.getOrDefault("MTDT", "");
             String sStockExchange = pData.getOrDefault("SEXC", "");
+            String sBloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
 
             // Customer-level fields
             String sCustomerNo = pData.getOrDefault("CUNO", "");

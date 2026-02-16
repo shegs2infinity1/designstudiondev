@@ -56,6 +56,7 @@ public class CbnScPayload {
                 response.put("mnemonic", originalItem.path("MNEMONIC").asText(""));
                 response.put("shortName", originalItem.path("SHORT_NAME").asText(""));
                 response.put("setupDate", originalItem.path("SETUP_DATE").asText(""));
+                response.put("bloombergId", originalItem.path("BLOOMBERG_ID").asText(""));
             }
 
             String jsonResponse = objectMapper.writeValueAsString(response);

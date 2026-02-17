@@ -13,11 +13,13 @@ public class CbnTfBackup {
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");
 
     public static void backupMessage(String messageBody, String module, String originalId) {
+        
+       
         try {
             CbnTfProperties props = CbnTfProperties.getInstance();
             String backupDirStr = props.getProperty("tf.nfs.backup.dir", "/t24app/app/bnk/UD/BLOOMBERG/BACKUP");
             Path backupPath = Paths.get(backupDirStr, module);
-            
+            LOGGER.log(Level.INFO, "[CbnTfBackup] Backup requested → module='{0}', targetPath='{1}'", new Object[]{module, backupPath});
             if (!Files.exists(backupPath)) {
                 Files.createDirectories(backupPath);
             }

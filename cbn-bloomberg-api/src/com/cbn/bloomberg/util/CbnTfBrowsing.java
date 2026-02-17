@@ -1,6 +1,23 @@
 package com.cbn.bloomberg.util;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.jms.BytesMessage;
+import javax.jms.Connection;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.QueueBrowser;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -156,7 +173,7 @@ public final class CbnTfBrowsing {
      * @return BrowseResult containing matching message IDs and statistics
      */
     public static BrowseResult browseForModule(Connection pConnection, String pQueueName,
-            ModuleType pModule, ObjectMapper pObjMapper) throws JMSException {
+            ModuleType pModule, ObjectMapper pObjMapper) throws JMSException, IOException {
 
         List<String> matchingIds = new ArrayList<>();
         int totalBrowsed = 0;
@@ -181,23 +198,80 @@ public final class CbnTfBrowsing {
                 Message m = messages.nextElement();
                 totalBrowsed++;
 
-                if (!(m instanceof TextMessage)) {
-                    skippedCount++;
-                    continue;
-                }
-
-                String body = ((TextMessage) m).getText();
-                if (body == null || body.trim().isEmpty()) {
-                    skippedCount++;
-                    continue;
-                }
-
                 String msgId = m.getJMSMessageID();
+                System.out.println("\n[" + totalBrowsed + "] Message ID: " + msgId);
+
+                String body = null;
+
+                if (m instanceof TextMessage) {
+                    try {
+                        body = ((TextMessage) m).getText();
+                    } catch (JMSException e) {
+                        yLogger.log(Level.WARNING, "Failed to read TextMessage {0}: {1}", 
+                                    new Object[]{msgId, e.toString()});
+                        skippedCount++;
+                        continue;
+                    }
+                } 
+                else if (m instanceof BytesMessage) {
+                    try {
+                        BytesMessage bm = (BytesMessage) m;
+                        long len = bm.getBodyLength();
+
+                        if (len <= 0) {
+                            System.out.println("BytesMessage has zero length");
+                            skippedCount++;
+                            continue;
+                        }
+                        if (len > Integer.MAX_VALUE) {
+                            yLogger.log(Level.WARNING, "BytesMessage {0} too large: {1} bytes", 
+                                        new Object[]{msgId, len});
+                            skippedCount++;
+                            continue;
+                        }
+
+                        byte[] bytes = new byte[(int) len];
+                        int read = bm.readBytes(bytes);
+
+                        if (read != len) {
+                            System.out.println("Incomplete BytesMessage read: " + read + "/" + len);
+                            yLogger.log(Level.WARNING, "Incomplete read BytesMessage {0}: {1}/{2}", 
+                                        new Object[]{msgId, read, len});
+                            skippedCount++;
+                            continue;
+                        }
+
+                        body = new String(bytes, StandardCharsets.UTF_8);
+                       
+                    } catch (JMSException e) {
+                      
+                        yLogger.log(Level.WARNING, "Failed to read BytesMessage {0}: {1}", 
+                                    new Object[]{msgId, e.toString()});
+                        skippedCount++;
+                        continue;
+                    }
+                } 
+                else {
+                    
+                    yLogger.log(Level.INFO, "Skipped message {0} - unsupported type: {1}", 
+                                new Object[]{msgId, m.getClass().getName()});
+                    skippedCount++;
+                    continue;
+                }
+
+                if (body == null || body.trim().isEmpty()) {
+                   
+                    skippedCount++;
+                    continue;
+                }
 
                 try {
                     JsonNode root = pObjMapper.readTree(body);
-                    // Handle both wrapped and unwrapped formats
                     root = normalizeRoot(root);
+
+
+                    yLogger.log(Level.INFO, "Msg {0} - after normalize - node type: {1}, has PLACEMENTS: {2}",
+                            new Object[]{msgId, root.getNodeType(), root.has("PLACEMENTS")});
 
                     if (pModule.hasTransaction(root)) {
                         matchingIds.add(msgId);
@@ -214,11 +288,14 @@ public final class CbnTfBrowsing {
                         skippedCount++;
                     }
                 } catch (IOException ioe) {
+                    System.out.println("JSON parse failed: " + ioe);
                     yLogger.log(Level.WARNING,
-                            "[CbnTfBrowsing] JSON parse error for message {0}", msgId);
+                            "[CbnTfBrowsing] JSON parse error for message {0}: {1}", 
+                            new Object[]{msgId, ioe.toString()});
                     skippedCount++;
                 }
             }
+
 
             yLogger.log(Level.INFO,
                     "[CbnTfBrowsing] Browse complete for {0}: total={1}, matches={2}, skipped={3}",

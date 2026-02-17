@@ -262,58 +262,105 @@ public final class CbnScAdapter {
         Connection connection = null;
         try {
             Properties props = loadMqProperties();
-            MQConnectionFactory factory = createMqFactory(props);
-
-            String user = props.getProperty(WMQ_USR, "").trim();
-            connection = user.isEmpty() ? factory.createConnection()
-                    : factory.createConnection(user, props.getProperty(WMQ_KEY, ""));
-            connection.start();
-
-            String queueName = props.getProperty(WMQ_QUE);
-
-            // Phase 1a: Browse to identify SC (SECURITY_MASTER) messages
-            BrowseResult browseResultSc = CbnTfBrowsing.browseForModule(connection, queueName,
-                    MODULE_SC, pObjMapper);
-
-            yLogger.log(Level.INFO,
-                    "[CbnScAdapter] WMQ: browse found {0} SC messages out of {1} total",
-                    new Object[] { browseResultSc.getMatchCount(),
-                            browseResultSc.getTotalBrowsed() });
-
-            // Phase 1b: Browse to identify ST (SEC_TRADE) messages
-            BrowseResult browseResultSt = CbnTfBrowsing.browseForModule(connection, queueName,
-                    MODULE_ST, pObjMapper);
-
-            yLogger.log(Level.INFO,
-                    "[CbnScAdapter] WMQ: browse found {0} ST messages out of {1} total",
-                    new Object[] { browseResultSt.getMatchCount(),
-                            browseResultSt.getTotalBrowsed() });
-
-            // Phase 2a: Selectively consume SC messages
-            if (browseResultSc.hasMatches()) {
-                ids.addAll(consumeMatchingMessages(connection, props,
-                        browseResultSc.getMatchingMessageIds(), pObjMapper, MODULE_SC));
+            if (props == null || props.isEmpty()) {
+                yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Failed to load MQ properties");
+                return ids; // early return - no point continuing
             }
 
-            // Phase 2b: Selectively consume ST messages
-            if (browseResultSt.hasMatches()) {
-                ids.addAll(consumeMatchingMessages(connection, props,
-                        browseResultSt.getMatchingMessageIds(), pObjMapper, MODULE_ST));
+            MQConnectionFactory factory = createMqFactory(props);
+            if (factory == null) {
+                yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Failed to create MQConnectionFactory");
+                return ids;
+            }
+
+            String user = props.getProperty(WMQ_USR, "").trim();
+            String password = props.getProperty(WMQ_KEY, "");
+            String queueName = props.getProperty(WMQ_QUE);
+
+            if (queueName == null || queueName.trim().isEmpty()) {
+                yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Queue name is missing or empty");
+                return ids;
+            }
+
+            yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: Connecting to queue: {0}", queueName);
+
+            // Create connection
+            connection = user.isEmpty() 
+                ? factory.createConnection()
+                : factory.createConnection(user, password);
+
+            connection.start();
+
+            yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: Connection started successfully");
+
+            // Phase 1a: Browse for SC (SECURITY_MASTER)
+            BrowseResult browseResultSc = null;
+            try {
+                browseResultSc = CbnTfBrowsing.browseForModule(connection, queueName, MODULE_SC, pObjMapper);
+                yLogger.log(Level.INFO,
+                        "[CbnScAdapter] WMQ: SC browse → total={0}, matches={1}, skipped={2}",
+                        new Object[]{
+                            browseResultSc.getTotalBrowsed(),
+                            browseResultSc.getMatchCount(),
+                            browseResultSc.getSkippedCount()
+                        });
+            } catch (JMSException e) {
+                yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Failed to browse for SC messages", e);
+            }
+
+            // Phase 1b: Browse for ST (SEC_TRADE)
+            BrowseResult browseResultSt = null;
+            try {
+                browseResultSt = CbnTfBrowsing.browseForModule(connection, queueName, MODULE_ST, pObjMapper);
+                yLogger.log(Level.INFO,
+                        "[CbnScAdapter] WMQ: ST browse → total={0}, matches={1}, skipped={2}",
+                        new Object[]{
+                            browseResultSt != null ? browseResultSt.getTotalBrowsed() : 0,
+                            browseResultSt != null ? browseResultSt.getMatchCount() : 0,
+                            browseResultSt != null ? browseResultSt.getSkippedCount() : 0
+                        });
+            } catch (JMSException e) {
+                yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Failed to browse for ST messages", e);
+            }
+
+            // Phase 2a: Consume SC messages if any were found
+            if (browseResultSc != null && browseResultSc.hasMatches()) {
+                try {
+                    List<String> scIds = consumeMatchingMessages(connection, props,
+                            browseResultSc.getMatchingMessageIds(), pObjMapper, MODULE_SC);
+                    ids.addAll(scIds);
+                    yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: Consumed {0} SC messages", scIds.size());
+                } catch (Exception e) {
+                    yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Error consuming SC messages", e);
+                }
+            }
+
+            // Phase 2b: Consume ST messages if any were found
+            if (browseResultSt != null && browseResultSt.hasMatches()) {
+                try {
+                    List<String> stIds = consumeMatchingMessages(connection, props,
+                            browseResultSt.getMatchingMessageIds(), pObjMapper, MODULE_ST);
+                    ids.addAll(stIds);
+                    yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: Consumed {0} ST messages", stIds.size());
+                } catch (Exception e) {
+                    yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Error consuming ST messages", e);
+                }
             }
 
         } catch (JMSException jmse) {
-            yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: JMS error during browse/consume", jmse);
+            yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: JMS error during connection/browse/consume phase", jmse);
         } catch (RuntimeException re) {
-            yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Runtime error", re);
+            yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: Unexpected runtime error", re);
+        } catch (Exception e) {
+            // Catch-all for anything unexpected (e.g. NPE from props, etc.)
+            yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: General exception in extractIdsFromWmq", e);
         } finally {
             CbnTfBrowsing.closeQuietly(connection);
+            yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: Connection closed. Total IDs collected: {0}", ids.size());
         }
 
-        yLogger.log(Level.INFO, "[CbnScAdapter] WMQ: finished processing, total IDs generated={0}",
-                ids.size());
         return ids;
     }
-
     /**
      * Consumes messages by their JMSMessageID using selector-based retrieval.
      * Only messages identified during browse phase are consumed.

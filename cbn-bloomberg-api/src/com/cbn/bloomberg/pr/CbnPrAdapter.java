@@ -209,20 +209,51 @@ public final class CbnPrAdapter {
             connection.start();
 
             String queueName = props.getProperty("tf.wmq.queue");
-
-            // Phase 1: Browse to identify PR messages using shared utility
-            BrowseResult browseResult = CbnTfBrowsing.browseForModule(
+            try {
+                BrowseResult browseResult = CbnTfBrowsing.browseForModule(
                     connection, queueName, MODULE, pObjMapper);
+                
+                // normal processing...
+                System.out.println("Browsed: total=" + browseResult.getTotalBrowsed() +
+                                   ", matches=" + browseResult.getMatchCount() +
+                                   ", skipped=" + browseResult.getSkippedCount());
+                
+                yLogger.log(Level.INFO,
+                        "[CbnPdAdapter] WMQ: browse found {0} PR messages out of {1} total",
+                        new Object[] { browseResult.getMatchCount(), browseResult.getTotalBrowsed() });
 
-            yLogger.log(Level.INFO,
-                    "[CbnPrAdapter] WMQ: browse found {0} PR messages out of {1} total",
-                    new Object[] { browseResult.getMatchCount(), browseResult.getTotalBrowsed() });
+                // Phase 2: Selectively consume matching messages
+                if (browseResult.hasMatches()) {
+                    ids = consumeMatchingMessages(connection, props, 
+                            browseResult.getMatchingMessageIds(), pObjMapper);
+                }
 
-            // Phase 2: Selectively consume matching messages
-            if (browseResult.hasMatches()) {
-                ids = consumeMatchingMessages(connection, props, 
-                        browseResult.getMatchingMessageIds(), pObjMapper);
+
+            } catch (JMSException e) {
+                // Most common case
+                System.err.println("JMS problem while browsing queue " + queueName);
+                e.printStackTrace();                           // ← full stack + cause
+                // or better: use logger
+                // yourLogger.log(Level.SEVERE, "Browse failed for " + MODULE, e);
+
+            } catch (Exception e) {    // catch broader issues (NPE, OOME, etc.)
+                System.err.println("Unexpected error during browseForModule: " + e);
+                e.printStackTrace();
             }
+
+//            // Phase 1: Browse to identify PR messages using shared utility
+//            BrowseResult browseResult = CbnTfBrowsing.browseForModule(
+//                    connection, queueName, MODULE, pObjMapper);
+//
+//            yLogger.log(Level.INFO,
+//                    "[CbnPrAdapter] WMQ: browse found {0} PR messages out of {1} total",
+//                    new Object[] { browseResult.getMatchCount(), browseResult.getTotalBrowsed() });
+//
+//            // Phase 2: Selectively consume matching messages
+//            if (browseResult.hasMatches()) {
+//                ids = consumeMatchingMessages(connection, props, 
+//                        browseResult.getMatchingMessageIds(), pObjMapper);
+//            }
 
         } catch (JMSException jmse) {
             yLogger.log(Level.SEVERE, "[CbnPrAdapter] WMQ: JMS error during browse/consume", jmse);

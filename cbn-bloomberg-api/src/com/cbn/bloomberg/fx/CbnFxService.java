@@ -857,7 +857,8 @@ public class CbnFxService extends ServiceLifecycle {
         CbnBksdRequestRecord pCbnBksdRecord = new CbnBksdRequestRecord();
         
         // Local App Fields
-        pCbnBksdRecord.setDealType(pData.getOrDefault("DTYP", ""));
+        //pCbnBksdRecord.setDealType(pData.getOrDefault("DTYP", ""));
+        pCbnBksdRecord.setDealType("SPOT"); // TO substitute the SD type to SPOT transaction
         pCbnBksdRecord.setCounterparty(pData.getOrDefault("CPTY", ""));
         pCbnBksdRecord.setDealDate(pData.getOrDefault("DDAT", ""));
         pCbnBksdRecord.setCurrencyBought(pData.getOrDefault("CCYB", ""));

@@ -43,7 +43,7 @@ import com.temenos.t24.api.tables.cbnbksdrequest.CbnBksdRequestRecord;
  * 
  * Last Modified: 2025-01-12
  *
- * Purpose: Bloomberg FX Service Hook supporting dual ingestion modes (FILE/WMQ) with two-phase
+ * Purpose: CBN Bloomberg FX Service Hook supporting dual ingestion modes (FILE/WMQ) with two-phase
  * processing:
  * 
  * 1. PROCESS.FX submits OFS requests

@@ -701,7 +701,7 @@ public class CbnPrService extends ServiceLifecycle {
             pTxnData.setResponseId(pResponseId);
             pTxnData.setVersionId(pOfsVersion);
             pTxnData.setFunction(mOfsFunction);
-            pTxnData.setNumberOfAuthoriser("0");
+//            pTxnData.setNumberOfAuthoriser("0");
             pTxnData.setSourceId(mOfsSource);
             pTxnData.setCompanyId(mCompanyId);
 

@@ -773,7 +773,7 @@ public class CbnPdService extends ServiceLifecycle {
                 yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersionFgn);
             } 
             pTxnData.setFunction(mOfsFunction);
-            pTxnData.setNumberOfAuthoriser("0");
+            //pTxnData.setNumberOfAuthoriser("1");
             pTxnData.setSourceId(mOfsSource);
             pTxnData.setCompanyId(mCompanyId);
 

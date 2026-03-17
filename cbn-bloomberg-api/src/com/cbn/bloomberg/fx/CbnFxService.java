@@ -890,7 +890,7 @@ public class CbnFxService extends ServiceLifecycle {
         pTxnData.setResponseId(pOfsResponseId);
         pTxnData.setVersionId(pOfsVersion);
         pTxnData.setFunction(mOfsFunction);
-        pTxnData.setNumberOfAuthoriser("0");
+//        pTxnData.setNumberOfAuthoriser("1");
         pTxnData.setSourceId(mOfsSource);
         pTxnData.setCompanyId("NG0010001");
 

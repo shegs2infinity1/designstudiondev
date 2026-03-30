@@ -281,7 +281,8 @@ public class CbnScService extends ServiceLifecycle {
             yLOGGER.log(Level.FINE, "Mapped fields for SECURITY_MASTER: {0}", pData);
             String bloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
             try {
-                CbnTfBackup.backupMessage(pOriginalItem.toString(), bloombergId, pMessageType);
+                
+                CbnTfBackup.backupMessage(pOriginalItem.toString(), "SECURITY_MASTER", pMessageType);
                 yLOGGER.log(Level.INFO, LOG_PREFIX + "Message backed up for BLOOMBERG_ID: {0}", bloombergId);
             } catch (Exception e) {
                 yLOGGER.log(Level.WARNING, LOG_PREFIX + "Failed to backup message: {0}", e.getMessage());
@@ -406,7 +407,9 @@ public class CbnScService extends ServiceLifecycle {
             record.setBrokerNo(pData.getOrDefault("BRNO", ""));
             record.setDepoBrAccountNo(pData.getOrDefault("DBAC", ""));
             record.setDescription(pData.getOrDefault("DESC", ""));
-
+            record.setTransType(pData.getOrDefault("TTYP", ""));
+            record.setPrimSecMkt(pData.getOrDefault("PMKT", ""));
+            record.setValueDate(pData.getOrDefault("VLDT", ""));
             // Nominal / Price (multi-value set 0)
             record.setNominal(pData.getOrDefault("NOML", ""));
             record.setPrice(pData.getOrDefault("PRCE", ""));

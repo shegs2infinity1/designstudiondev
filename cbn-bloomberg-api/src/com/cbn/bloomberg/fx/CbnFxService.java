@@ -20,6 +20,7 @@ import com.cbn.bloomberg.util.CbnTfProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.temenos.api.TBoolean;
+import com.temenos.api.TField;
 import com.temenos.api.TStructure;
 import com.temenos.api.exceptions.T24CoreException;
 import com.temenos.t24.api.complex.eb.servicehook.ServiceData;
@@ -776,6 +777,10 @@ public class CbnFxService extends ServiceLifecycle {
         pFxRecord.setCpyCorrName(pData.getOrDefault("CCNO", ""));
         pFxRecord.setCpyCorrCity(pData.getOrDefault("CCAD", ""));
         pFxRecord.setAccountToCharge(pData.getOrDefault("CBNK", ""));
+        //TField dealernote = pFxRecord.getDealerNotes(0);
+        //dealernote.setValue(pData.getOrDefault("", ""));
+        pFxRecord.setDealerNotes(pData.getOrDefault("NOTS", ""), 0);
+        //pFxRecord.addDealerNotes(param);
         pFxRecord.setIntRateBuy(pData.getOrDefault("INTB", ""));
         pFxRecord.setIntRateSell(pData.getOrDefault("INTS", ""));
 

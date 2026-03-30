@@ -370,23 +370,26 @@ public final class CbnScAdapter {
             throws JMSException {
 
         List<String> ids = new ArrayList<>();
+
         String ackMode = pProps.getProperty(WMQ_ACK, "auto").trim().toLowerCase();
         int jmsAck = "auto".equals(ackMode) ? Session.AUTO_ACKNOWLEDGE : Session.CLIENT_ACKNOWLEDGE;
 
         Session consumeSession = null;
+
         try {
             consumeSession = pConnection.createSession(false, jmsAck);
+
             javax.jms.Queue queue = consumeSession.createQueue(
                     "queue:///" + pProps.getProperty(WMQ_QUE));
 
             for (String msgId : pMatchingIds) {
+
                 MessageConsumer consumer = null;
+
                 try {
-                    // Build selector using shared utility
                     String selector = CbnTfBrowsing.buildMessageSelector(msgId);
                     consumer = consumeSession.createConsumer(queue, selector);
 
-                    // Short timeout since we know the message exists
                     Message m = consumer.receive(2000);
 
                     if (m == null) {
@@ -395,22 +398,51 @@ public final class CbnScAdapter {
                         continue;
                     }
 
-                    if (!(m instanceof TextMessage)) {
+                    // 🔹 Handle both TextMessage and BytesMessage
+                    String body = null;
+
+                    if (m instanceof TextMessage) {
+                        body = ((TextMessage) m).getText();
+                        yLogger.log(Level.FINE,
+                                "[CbnScAdapter] WMQ: processing TextMessage {0}", msgId);
+
+                    } else if (m instanceof javax.jms.BytesMessage) {
+                        try {
+                            javax.jms.BytesMessage bytesMsg = (javax.jms.BytesMessage) m;
+                            byte[] bytes = new byte[(int) bytesMsg.getBodyLength()];
+                            bytesMsg.readBytes(bytes);
+                            body = new String(bytes, StandardCharsets.UTF_8);
+
+                            yLogger.log(Level.FINE,
+                                    "[CbnScAdapter] WMQ: processing BytesMessage {0}", msgId);
+
+                        } catch (JMSException jmsEx) {
+                            yLogger.log(Level.SEVERE,
+                                    "[CbnScAdapter] WMQ: failed to read BytesMessage {0}", msgId);
+                            continue;
+                        }
+
+                    } else {
+                        yLogger.log(Level.WARNING,
+                                "[CbnScAdapter] WMQ: unsupported message type {0} for {1}",
+                                new Object[]{m.getClass().getSimpleName(), msgId});
                         continue;
                     }
 
-                    String body = ((TextMessage) m).getText();
                     if (body == null || body.trim().isEmpty()) {
+                        yLogger.log(Level.WARNING,
+                                "[CbnScAdapter] WMQ: empty body for message {0}", msgId);
                         continue;
                     }
 
-                    // Normalize cache key using shared utility
+                    // 🔹 Cache message
                     String cacheKey = CbnTfBrowsing.normalizeCacheKey(msgId);
                     MQ_MESSAGE_CACHE.put(cacheKey, body);
 
                     try {
                         JsonNode root = CbnTfBrowsing.normalizeRoot(pObjMapper.readTree(body));
                         JsonNode txnNode = pModule.getTransaction(root);
+
                         int size = CbnTfBrowsing.countTransactionItems(txnNode);
 
                         for (int i = 0; i < size; i++) {
@@ -419,10 +451,14 @@ public final class CbnScAdapter {
 
                         yLogger.log(Level.INFO,
                                 "[CbnScAdapter] WMQ: consumed (ack={0}) {1} {2} item(s) from {3}",
-                                new Object[] { ackMode, size, pModule.name(), msgId });
+                                new Object[]{ackMode, size, pModule.name(), msgId});
 
                     } catch (IOException ioe) {
-                        yLogger.log(Level.SEVERE, "[CbnScAdapter] WMQ: JSON parse error on consume",
+                        yLogger.log(Level.SEVERE,
+                                "[CbnScAdapter] WMQ: JSON parse error on consume for {0}", msgId);
+
+                        yLogger.log(Level.SEVERE,
+                                "Body preview: " + body.substring(0, Math.min(200, body.length())),
                                 ioe);
                     }
 
@@ -430,14 +466,13 @@ public final class CbnScAdapter {
                     CbnTfBrowsing.closeQuietly(consumer);
                 }
             }
+
         } finally {
             CbnTfBrowsing.closeQuietly(consumeSession);
         }
 
         return ids;
-    }
-
-    /**
+    }    /**
      * Reads a cached MQ message body and normalizes it.
      */
     public static JsonNode readMqMessage(String pMessageId, ObjectMapper pObjMapper)

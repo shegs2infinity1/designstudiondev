@@ -711,6 +711,8 @@ public class CbnPdService extends ServiceLifecycle {
             String sCapitalization = pData.getOrDefault("TCAP", "");
             String sPrevPrinAmount = pData.getOrDefault("CPPAMTTY", "");
             String sBloombergId = pData.getOrDefault("BLOOMBERG_ID", "");
+            String securityId = pData.getOrDefault("SECURITY_ID", "");
+            String buySellInd = pData.getOrDefault("BUY_SELL_MARKER", "");
 
             // Validate required fields
             if (sCustomerNo.isEmpty() || sCurrency.isEmpty() || sPrincipal.isEmpty()) {
@@ -755,6 +757,14 @@ public class CbnPdService extends ServiceLifecycle {
             pPlaceDepoRecord.setCapitalisation(sCapitalization);
             pPlaceDepoRecord.setPrevPrinAmount(sPrevPrinAmount);
             
+            
+            if (!securityId.isEmpty()){
+                pPlaceDepoRecord.getLocalRefField("SECURITY.ID").setValue(securityId);
+            }
+            
+            if (!buySellInd.isEmpty()){
+                pPlaceDepoRecord.getLocalRefField("BUY.SELL.MARKER").setValue(buySellInd);
+            }
 
             yLOGGER.log(Level.INFO, "[CbnPdService] Adding record: {0}", pPlaceDepoRecord);
 
@@ -764,14 +774,32 @@ public class CbnPdService extends ServiceLifecycle {
             
             yLOGGER.log(Level.INFO, "[CbnPdService] Checking sFgnFedAcct: {0}", sFgnFedAcct);
             
-            if (sFgnFedAcct == "") {
-                pTxnData.setVersionId(mOfsVersion);
-                yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersion);
+            
+            boolean isForeignFedAcctPopulated = (sFgnFedAcct != null && !sFgnFedAcct.trim().isEmpty());
+
+            String versionToUse = isForeignFedAcctPopulated ? mOfsVersionFgn : mOfsVersion;
+
+            pTxnData.setVersionId(versionToUse);
+            
+            if (!buySellInd.isEmpty()){
+                if ("SELL".equalsIgnoreCase(buySellInd)) { 
+                    String SellmOfsVersionFgn = mOfsVersionFgn + ".SELL";
+                    String SellmOfsVersion = mOfsVersion + ".SELL";
+                    versionToUse = isForeignFedAcctPopulated ? SellmOfsVersionFgn : SellmOfsVersion;
+                    pTxnData.setVersionId(versionToUse);
+                }
             }
-            if (sFgnFedAcct != "") {
-                pTxnData.setVersionId(mOfsVersionFgn);
-                yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersionFgn);
-            } 
+            
+            yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", versionToUse);
+            
+//            if (sFgnFedAcct == "") {
+//                pTxnData.setVersionId(mOfsVersion);
+//                yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersion);
+//            }
+//            if (sFgnFedAcct != "") {
+//                pTxnData.setVersionId(mOfsVersionFgn);
+//                yLOGGER.log(Level.INFO, "[CbnPdService] Posting with Version: {0}", mOfsVersionFgn);
+//            } 
             pTxnData.setFunction(mOfsFunction);
             //pTxnData.setNumberOfAuthoriser("1");
             pTxnData.setSourceId(mOfsSource);

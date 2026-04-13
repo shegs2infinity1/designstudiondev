@@ -148,6 +148,8 @@ public final class CbnPdMapper {
         String tCap = asText(pFm, "CAPITALISATION");
         String pAmt = asText(pFm, "PREV_PRIN_AMOUNT");
         String bloombergId = asText(pFm, "BLOOMBERG_ID");
+        String securityId = asText(pFm, "SECURITY_ID");
+        String buySelInd = asText(pFm, "BUY_SELL_MARKER");
 
         map.put("CNUM", safe(cNum));
         map.put("TCCY", safe(tCcy));
@@ -180,6 +182,8 @@ public final class CbnPdMapper {
         map.put("TCAP", safe(tCap));
         map.put("PAMT", normalizeAmount(safe(pAmt)));
         map.put("BLOOMBERG_ID", safe(bloombergId));
+        map.put("SECURITY_ID", safe(securityId)); 
+        map.put("BUY_SELL_MARKER", safe(buySelInd)); 
         return map;
     }
 

@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * Modification Details: ---- 11/10/25 - Initial version Bloomberg PD deserialization with POJO
  * support ---- 09/11/25 - Updated to handle single PLACEMENTS object (not array) Compliant with CSD
- * Java Programming Standards r2022
+ * Java Programming Standards r2022..
  */
 public final class CbnPdDserializer {
 

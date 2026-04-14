@@ -39,7 +39,7 @@ import com.ibm.msg.client.wmq.common.CommonConstants;
  * 
  * IMPORTANT: This adapter uses browse-then-selective-consume pattern via CbnTfBrowsing
  * to only process messages containing PLACEMENTS, leaving other module messages 
- * (FX, FT, PR, SC) on the queue for their respective batch jobs.
+ * (FX, FT, PR, SC) on the queue for their respective batch jobs..
  */
 public final class CbnPdAdapter {
 

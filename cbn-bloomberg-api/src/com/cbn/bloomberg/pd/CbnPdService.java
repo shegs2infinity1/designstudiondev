@@ -674,7 +674,7 @@ public class CbnPdService extends ServiceLifecycle {
         SynchronousTransactionData pTxnData = null;
 
         try {
-            yLOGGER.log(Level.INFO, LOG_PREFIX + "=== buildDepoRecord() START ===");
+            yLOGGER.log(Level.INFO, LOG_PREFIX + "=== buildDepoRecord() has started START ===");
             yLOGGER.log(Level.INFO, LOG_PREFIX
                     + "buildDepoRecord: Building Deposit Placements record for responseId: {0}",
                     pResponseId);
@@ -714,15 +714,16 @@ public class CbnPdService extends ServiceLifecycle {
             String securityId = pData.getOrDefault("SECURITY_ID", "");
             String buySellInd = pData.getOrDefault("BUY_SELL_MARKER", "");
 
+            
             // Validate required fields
             if (sCustomerNo.isEmpty() || sCurrency.isEmpty() || sPrincipal.isEmpty()) {
-                yLOGGER.log(Level.SEVERE, "[CbnPdService] Missing required fields");
+                yLOGGER.log(Level.SEVERE, "[CbnPdService] Missing required fields.");
                 return false;
             }
             // Log extracted field values
             yLOGGER.log(Level.INFO,
-                    "[CbnPdService] Extracted fields - CNUM={0}, TCCY={1}, PPPL={2}, ERTE={3}, ALCY={4}",
-                    new Object[] { sCustomerNo, sCurrency, sPrincipal, sExchRate, sLcyAmount });
+                    "[CbnPdService] Extracted fields - SECID={0}, TCCY={1}, PPPL={2}, ERTE={3}, ALCY={4}, CUSTNO{5}",
+                    new Object[] { securityId, sCurrency, sPrincipal, sExchRate, sLcyAmount, sCustomerNo });
 
             // Create Placements record
             pPlaceDepoRecord = new CbnPlacementDepositRecord();
@@ -756,15 +757,9 @@ public class CbnPdService extends ServiceLifecycle {
             pPlaceDepoRecord.setNewIntRate(sNewInterestRate);
             pPlaceDepoRecord.setCapitalisation(sCapitalization);
             pPlaceDepoRecord.setPrevPrinAmount(sPrevPrinAmount);
-            
-            
-            if (!securityId.isEmpty()){
-                pPlaceDepoRecord.getLocalRefField("SECURITY.ID").setValue(securityId);
-            }
-            
-            if (!buySellInd.isEmpty()){
-                pPlaceDepoRecord.getLocalRefField("BUY.SELL.MARKER").setValue(buySellInd);
-            }
+            pPlaceDepoRecord.setSecurityId(securityId);
+            pPlaceDepoRecord.setBuySellMarker(buySellInd);
+            pPlaceDepoRecord.setBloombergId(sBloombergId);
 
             yLOGGER.log(Level.INFO, "[CbnPdService] Adding record: {0}", pPlaceDepoRecord);
 

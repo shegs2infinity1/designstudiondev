@@ -36,7 +36,7 @@ public class CbnPdPayload {
      * @param message Descriptive message about the transaction result
      * @param transactionRef T24 transaction reference (or error code)
      * @param originalItem Original JSON item from Bloomberg (optional, for context)
-     * @return JSON string representation of the response
+     * @return JSON string representation of the response..
      */
     public String buildResponse(String status, String message, String transactionRef,
             JsonNode originalItem, String bloombergId) {

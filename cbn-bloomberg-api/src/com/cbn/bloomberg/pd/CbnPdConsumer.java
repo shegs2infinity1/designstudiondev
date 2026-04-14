@@ -25,7 +25,7 @@ import com.ibm.msg.client.wmq.WMQConstants;
  * (MessageProcessor)
  * 
  * Modification Details: ---- 11/10/25 - Initial version Pure JMS implementation without Spring
- * dependencies Compliant with CSD Java Programming Standards r2022
+ * dependencies Compliant with CSD Java Programming Standards r2022.
  */
 
 public final class CbnPdConsumer {

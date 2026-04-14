@@ -201,7 +201,7 @@ public final class CbnScMapper {
     private static void mapStTradeIdentifiers(JsonNode pSt, Map<String, String> pMap) {
         pMap.put("TTYP", safe(asText(pSt, "TRANS_TYPE")));
         pMap.put("PMKT", safe(asText(pSt, "PRIM_SEC_MKT")));
-        pMap.put("SENO", safe(asText(pSt, "SECUIRTY_NO"))); // preserved typo from Bloomberg
+        pMap.put("SENO", safe(asText(pSt, "SECURITY_NO"))); 
         pMap.put("DEPO", safe(asText(pSt, "DEPOSITORY")));
     }
 
@@ -224,6 +224,7 @@ public final class CbnScMapper {
     private static void mapStCustomerInfo(JsonNode pSt, Map<String, String> pMap) {
         pMap.put("CUNO", safe(asText(pSt, "CUSTOMER_NO")));
         pMap.put("PFNO", safe(asText(pSt, "PORTFOLIO_NO")));
+        
     }
 
     private static void mapStAmounts(JsonNode pSt, Map<String, String> pMap) {
